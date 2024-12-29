@@ -73,6 +73,9 @@ from .const import (
     UNIT_CONDUCTIVITY,
     UNIT_DLI,
     UNIT_PPFD,
+    DEVICE_TYPE_CYCLE,
+    DEFAULT_AGGREGATIONS,
+    ATTR_IS_NEW_PLANT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -95,43 +98,68 @@ async def async_setup_entry(
         ]
         async_add_entities(sensor_entities)
 
-    pcurb = PlantCurrentIlluminance(hass, entry, plant)
-    pcurc = PlantCurrentConductivity(hass, entry, plant)
-    pcurm = PlantCurrentMoisture(hass, entry, plant)
-    pcurt = PlantCurrentTemperature(hass, entry, plant)
-    pcurh = PlantCurrentHumidity(hass, entry, plant)
-    plant_sensors = [
-        pcurb,
-        pcurc,
-        pcurm,
-        pcurt,
-        pcurh,
-    ]
-    async_add_entities(plant_sensors)
-    hass.data[DOMAIN][entry.entry_id][ATTR_SENSORS] = plant_sensors
-    plant.add_sensors(
-        temperature=pcurt,
-        moisture=pcurm,
-        conductivity=pcurc,
-        illuminance=pcurb,
-        humidity=pcurh,
-    )
+    # Erstelle die Standard-Sensoren für Plants
+    if plant.device_type != DEVICE_TYPE_CYCLE:
+        # Standard Sensoren
+        pcurb = PlantCurrentIlluminance(hass, entry, plant)
+        pcurc = PlantCurrentConductivity(hass, entry, plant)
+        pcurm = PlantCurrentMoisture(hass, entry, plant)
+        pcurt = PlantCurrentTemperature(hass, entry, plant)
+        pcurh = PlantCurrentHumidity(hass, entry, plant)
+        plant_sensors = [
+            pcurb,
+            pcurc,
+            pcurm,
+            pcurt,
+            pcurh,
+        ]
+        async_add_entities(plant_sensors)
+        hass.data[DOMAIN][entry.entry_id][ATTR_SENSORS] = plant_sensors
+        plant.add_sensors(
+            temperature=pcurt,
+            moisture=pcurm,
+            conductivity=pcurc,
+            illuminance=pcurb,
+            humidity=pcurh,
+        )
 
-    # Create and add the integral-entities
-    # Must be run after the sensors are added to the plant
+        # PPFD und DLI für Plants
+        pcurppfd = PlantCurrentPpfd(hass, entry, plant)
+        async_add_entities([pcurppfd])
 
-    pcurppfd = PlantCurrentPpfd(hass, entry, plant)
-    async_add_entities([pcurppfd])
+        pintegral = PlantTotalLightIntegral(hass, entry, pcurppfd, plant)
+        async_add_entities([pintegral], update_before_add=True)
 
-    pintegral = PlantTotalLightIntegral(hass, entry, pcurppfd, plant)
-    async_add_entities([pintegral], update_before_add=True)
+        plant.add_calculations(pcurppfd, pintegral)
 
-    plant.add_calculations(pcurppfd, pintegral)
+        pdli = PlantDailyLightIntegral(hass, entry, pintegral, plant)
+        async_add_entities(new_entities=[pdli], update_before_add=True)
 
-    pdli = PlantDailyLightIntegral(hass, entry, pintegral, plant)
-    async_add_entities(new_entities=[pdli], update_before_add=True)
+        plant.add_dli(dli=pdli)
 
-    plant.add_dli(dli=pdli)
+    # Erstelle die Median-Sensoren für Cycles
+    if plant.device_type == DEVICE_TYPE_CYCLE:
+        cycle_sensors = [
+            CycleMedianSensor(hass, entry, plant, "temperature"),
+            CycleMedianSensor(hass, entry, plant, "moisture"),
+            CycleMedianSensor(hass, entry, plant, "conductivity"),
+            CycleMedianSensor(hass, entry, plant, "illuminance"),
+            CycleMedianSensor(hass, entry, plant, "humidity"),
+            CycleMedianSensor(hass, entry, plant, "ppfd"),
+            CycleMedianSensor(hass, entry, plant, "dli"),
+            CycleMedianSensor(hass, entry, plant, "total_integral"),
+        ]
+        async_add_entities(cycle_sensors)
+        
+        plant.add_sensors(
+            temperature=cycle_sensors[0],
+            moisture=cycle_sensors[1],
+            conductivity=cycle_sensors[2],
+            illuminance=cycle_sensors[3],
+            humidity=cycle_sensors[4],
+        )
+        plant.add_calculations(cycle_sensors[5], cycle_sensors[7])
+        plant.add_dli(dli=cycle_sensors[6])
 
     return True
 
@@ -441,13 +469,10 @@ class PlantCurrentPpfd(PlantCurrentStatus):
     ) -> None:
         """Initialize the sensor"""
         self._attr_name = f"{config.data[FLOW_PLANT_INFO][ATTR_NAME]} {READING_PPFD}"
-
         self._attr_unique_id = f"{config.entry_id}-current-ppfd"
         self._attr_unit_of_measurement = UNIT_PPFD
         self._attr_native_unit_of_measurement = UNIT_PPFD
-
         self._plant = plantdevice
-
         self._external_sensor = self._plant.sensor_illuminance.entity_id
         self._attr_icon = ICON_PPFD
         super().__init__(hass, config, plantdevice)
@@ -455,6 +480,10 @@ class PlantCurrentPpfd(PlantCurrentStatus):
         self.entity_id = async_generate_entity_id(
             f"{DOMAIN_SENSOR}.{{}}", self.name, current_ids={}
         )
+        
+        # Setze Wert bei Neuerstellung zurück
+        if config.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
+            self._attr_native_value = None
 
     @property
     def device_class(self) -> str:
@@ -544,6 +573,10 @@ class PlantTotalLightIntegral(IntegrationSensor):
             f"{DOMAIN_SENSOR}.{{}}", self.name, current_ids={}
         )
         self._plant = plantdevice
+        
+        # Setze Wert bei Neuerstellung zurück
+        if config.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
+            self._attr_native_value = None
 
     @property
     def entity_category(self) -> str:
@@ -577,7 +610,8 @@ class PlantDailyLightIntegral(UtilityMeterSensor):
         plantdevice: Entity,
     ) -> None:
         """Initialize the sensor"""
-
+        self._attr_native_unit_of_measurement = UNIT_DLI
+        
         super().__init__(
             cron_pattern=None,
             delta_values=None,
@@ -594,13 +628,16 @@ class PlantDailyLightIntegral(UtilityMeterSensor):
             suggested_entity_id=None,
             periodically_resetting=True,
         )
+        
         self.entity_id = async_generate_entity_id(
             f"{DOMAIN_SENSOR}.{{}}", self.name, current_ids={}
         )
-
-        self._unit_of_measurement = UNIT_DLI
         self._attr_icon = ICON_DLI
         self._plant = plantdevice
+        
+        # Setze Wert bei Neuerstellung zurück
+        if config.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
+            self._attr_native_value = None
 
     @property
     def device_class(self) -> str:
@@ -779,3 +816,100 @@ class PlantDummyHumidity(PlantDummyStatus):
     def device_class(self) -> str:
         """Device class"""
         return SensorDeviceClass.HUMIDITY
+
+
+class CycleMedianSensor(SensorEntity):
+    """Sensor that shows median values for a cycle."""
+
+    def __init__(
+        self, 
+        hass: HomeAssistant, 
+        config: ConfigEntry, 
+        cycle_device: Entity,
+        sensor_type: str
+    ) -> None:
+        """Initialize the sensor."""
+        self._hass = hass
+        self._config = config
+        self._cycle = cycle_device
+        self._sensor_type = sensor_type
+        self._attr_unique_id = f"{config.entry_id}-median-{sensor_type}"
+        # Name mit korrektem Reading für PPFD und Total Integral
+        if sensor_type == "ppfd":
+            self._attr_name = f"{config.data[FLOW_PLANT_INFO][ATTR_NAME]} {READING_PPFD}"
+        elif sensor_type == "total_integral":
+            self._attr_name = f"{config.data[FLOW_PLANT_INFO][ATTR_NAME]} Total {READING_PPFD} Integral"
+        else:
+            self._attr_name = f"{config.data[FLOW_PLANT_INFO][ATTR_NAME]} {sensor_type}"
+
+        # Setze Icon und Unit basierend auf Sensor-Typ
+        if sensor_type == "temperature":
+            self._attr_native_unit_of_measurement = self._hass.config.units.temperature_unit
+            self._attr_icon = ICON_TEMPERATURE
+            self._attr_device_class = SensorDeviceClass.TEMPERATURE
+        elif sensor_type == "moisture":
+            self._attr_native_unit_of_measurement = PERCENTAGE
+            self._attr_icon = ICON_MOISTURE
+            self._attr_device_class = ATTR_MOISTURE
+        elif sensor_type == "conductivity":
+            self._attr_native_unit_of_measurement = UNIT_CONDUCTIVITY
+            self._attr_icon = ICON_CONDUCTIVITY
+            self._attr_device_class = ATTR_CONDUCTIVITY
+        elif sensor_type == "illuminance":
+            self._attr_native_unit_of_measurement = LIGHT_LUX
+            self._attr_icon = ICON_ILLUMINANCE
+            self._attr_device_class = SensorDeviceClass.ILLUMINANCE
+        elif sensor_type == "humidity":
+            self._attr_native_unit_of_measurement = PERCENTAGE
+            self._attr_icon = ICON_HUMIDITY
+            self._attr_device_class = SensorDeviceClass.HUMIDITY
+        elif sensor_type == "ppfd":
+            self._attr_native_unit_of_measurement = UNIT_PPFD
+            self._attr_icon = ICON_PPFD
+            self._attr_device_class = None
+            self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        elif sensor_type == "dli":
+            self._attr_native_unit_of_measurement = UNIT_DLI
+            self._attr_icon = ICON_DLI
+            self._attr_device_class = ATTR_DLI
+        elif sensor_type == "total_integral":
+            self._attr_native_unit_of_measurement = UNIT_DLI
+            self._attr_icon = ICON_DLI
+            self._attr_device_class = None
+            self._attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    @property
+    def device_info(self) -> dict:
+        """Return device info."""
+        return {
+            "identifiers": {(DOMAIN, self._cycle.unique_id)},
+        }
+
+    @property
+    def state(self):
+        """Return the median value."""
+        return self._cycle._median_sensors.get(self._sensor_type)
+
+    @property
+    def extra_state_attributes(self):
+        """Return additional sensor attributes."""
+        aggregation_method = self._cycle._plant_info.get('aggregations', {}).get(
+            self._sensor_type, DEFAULT_AGGREGATIONS[self._sensor_type]
+        )
+        return {
+            "member_plants": self._cycle._member_plants,
+            "aggregation_method": aggregation_method
+        }
+
+    async def async_update(self) -> None:
+        """Update the sensor."""
+        self._cycle._update_median_sensors()
+
+    @property
+    def should_poll(self) -> bool:
+        """Return True as we want to poll for updates."""
+        return True
+
+    @property
+    def state_class(self):
+        return SensorStateClass.MEASUREMENT
