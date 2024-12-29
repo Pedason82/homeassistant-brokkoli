@@ -7,22 +7,29 @@
         "description": "If you can't find the correct sensors in the dropdown menus, sensors can be added after the plant is set up",
         "data": {
           "name": "Plant name",
-          "species": "Species",
+          "strain": "Strain",
+          "breeder": "Breeder",
           "temperature_sensor": "Temperature sensor",
           "moisture_sensor": "Soil moisture sensor",
           "conductivity_sensor": "Conductivity sensor",
           "illuminance_sensor": "Illuminance sensor",
-          "humidity_sensor": "Air humidity sensor"
+          "humidity_sensor": "Air humidity sensor",
+          "growth_phase": "Growth phase",
+          "growth_phase_germination": "Germination", 
+          "growth_phase_rooting": "Rooting",
+          "growth_phase_growing": "Growing",
+          "growth_phase_flowering": "Flowering"
         },
         "data_description": {
-          "species": "Will be used for searching OpenPlantbook"
+          "strain": "Will be used for searching OpenPlantbook",
+          "growth_phase": "Current growth phase of the plant"
         }
       },
       "select_species": {
         "title": "Select species from OpenPlantbook",
         "description": "{desc}",
         "data": {
-          "species": "Species"
+          "strain": "Strain"
         },
         "menu_options": {
           "user": "Go back"
@@ -33,7 +40,26 @@
         "description": "# {name}\n![Plant]({entity_picture}){br}\n{extra_desc}Temperature unit is {temperature_unit}",
         "data": {
           "right_plant": "This is the plant I was looking for",
-          "display_pid": "Plant species to display",
+          "display_pid": "Strain",
+          "breeder": "Breeder",
+          "sorte": "Type",
+          "feminized": "Feminized",
+          "flowering_duration": "Flowering duration (days)",
+          "effects": "Effects",
+          "smell": "Smell",
+          "taste": "Taste",
+          "website": "Website",
+          "phenotype": "Phenotype",
+          "hunger": "Hunger",
+          "growth_stretch": "Growth stretch",
+          "flower_stretch": "Flower stretch",
+          "mold_resistance": "Mold resistance",
+          "difficulty": "Difficulty",
+          "yield": "Yield",
+          "notes": "Notes",
+          "lineage": "Lineage",
+          "infotext1": "Info text 1",
+          "infotext2": "Info text 2",
           "max_moisture": "Maximum soil moisture (%)",
           "min_moisture": "Minimum soil moisture (%)",
           "max_illuminance": "Maximum illuminance (lx)",
@@ -58,7 +84,7 @@
         "description": "",
         "data": {
           "check_days": "Illuminance check days",
-          "species": "Species",
+          "strain": "Strain",
           "force_update": "Force refresh data from OpenPlantbook",
           "display_pid": "Plant species to display",
           "temperature_sensor": "Temperature sensor",
@@ -89,6 +115,30 @@
         "new_sensor": {
           "name": "Sensor entity",
           "description": "Entity id of the new sensor. Leave blank to remove sensor."
+        }
+      }
+    },
+    "create_cycle": {
+      "name": "Create cycle",
+      "description": "Creates a new cycle entity.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "Name of the cycle."
+        },
+        "plant_emoji": {
+          "name": "Emoji",
+          "description": "Emoji to display next to the cycle name."
+        }
+      }
+    },
+    "remove_cycle": {
+      "name": "Remove cycle",
+      "description": "Removes a cycle entity and all its associated entities.",
+      "fields": {
+        "cycle_entity": {
+          "name": "Cycle entity",
+          "description": "The cycle to remove."
         }
       }
     }
