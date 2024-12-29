@@ -1,8 +1,11 @@
 """Constants"""
 
+from homeassistant.const import ATTR_ICON
+
 DOMAIN = "plant"
 DOMAIN_SENSOR = "sensor"
 DOMAIN_PLANTBOOK = "openplantbook"
+CYCLE_DOMAIN = "cycle"
 
 REQUEST_TIMEOUT = 30
 
@@ -28,9 +31,11 @@ ATTR_ENTITY = "entity"
 ATTR_SELECT = "select"
 ATTR_OPTIONS = "options"
 ATTR_PLANT = "plant"
-ATTR_SPECIES = "species"
+ATTR_STRAIN = "strain"
 ATTR_IMAGE = "image"
 ATTR_SEARCH_FOR = "search_for"
+ATTR_BREEDER = "breeder"
+ATTR_PID = "pid"
 
 # Readings are used by humans
 READING_BATTERY = "battery"
@@ -136,6 +141,8 @@ DEFAULT_LUX_TO_PPFD = 0.0185
 
 
 SERVICE_REPLACE_SENSOR = "replace_sensor"
+SERVICE_REMOVE_PLANT = "remove_plant"
+SERVICE_REMOVE_CYCLE = "remove_cycle"
 
 STATE_LOW = "Low"
 STATE_HIGH = "High"
@@ -165,7 +172,7 @@ CONF_MAX_BRIGHTNESS = "max_brightness"  # DEPRECATED. Only used for config migra
 
 
 CONF_CHECK_DAYS = "check_days"
-CONF_SPECIES = "species"
+CONF_STRAIN = "strain"
 CONF_IMAGE = "entity_picture"
 
 CONF_PLANTBOOK = "openplantbook"
@@ -183,3 +190,93 @@ CONF_PLANTBOOK_MAPPING = {
     CONF_MIN_MMOL: "min_light_mmol",
     CONF_MAX_MMOL: "max_light_mmol",
 }
+
+# Growth phases
+GROWTH_PHASE_GERMINATION = "Keimen"
+GROWTH_PHASE_ROOTING = "Wurzeln"
+GROWTH_PHASE_GROWING = "Wachstum"
+GROWTH_PHASE_FLOWERING = "Blüte"
+GROWTH_PHASE_HARVESTED = "Geerntet"
+GROWTH_PHASE_REMOVED = "Entfernt"  # Ans Ende verschoben
+DEFAULT_GROWTH_PHASE = GROWTH_PHASE_ROOTING
+
+GROWTH_PHASES = [
+    GROWTH_PHASE_GERMINATION,
+    GROWTH_PHASE_ROOTING,
+    GROWTH_PHASE_GROWING,
+    GROWTH_PHASE_FLOWERING,
+    GROWTH_PHASE_HARVESTED,
+    GROWTH_PHASE_REMOVED,    # Ans Ende verschoben
+]
+
+ATTR_FLOWERING_DURATION = "flowering_duration"
+
+# Neue Konstanten für zusätzliche Pflanzeneigenschaften
+ATTR_WEBSITE = "website"
+ATTR_INFOTEXT1 = "infotext1"
+ATTR_INFOTEXT2 = "infotext2" 
+ATTR_EFFECTS = "effects"
+ATTR_SMELL = "smell"
+ATTR_TASTE = "taste"
+ATTR_LINEAGE = "lineage"
+
+# Benutzerdefinierte Pflanzenattribute
+ATTR_PHENOTYPE = "phenotype"
+ATTR_HUNGER = "hunger"
+ATTR_GROWTH_STRETCH = "growth_stretch"
+ATTR_FLOWER_STRETCH = "flower_stretch"
+ATTR_MOLD_RESISTANCE = "mold_resistance"
+ATTR_DIFFICULTY = "difficulty"
+ATTR_YIELD = "yield"
+ATTR_NOTES = "notes"
+
+# Neue Konstante für den Plant-Erstellungsstatus
+ATTR_IS_NEW_PLANT = "is_new_plant"
+
+SERVICE_CREATE_PLANT = "create_plant"
+
+# Neue Konstanten für Device Types
+DEVICE_TYPE_PLANT = "plant"
+DEVICE_TYPE_CYCLE = "cycle"
+ATTR_DEVICE_TYPE = "device_type"
+
+DEVICE_TYPES = [
+    DEVICE_TYPE_PLANT,
+    DEVICE_TYPE_CYCLE
+]
+
+# Icons für Device Types
+ICON_DEVICE_PLANT = "mdi:flower-outline"
+ICON_DEVICE_CYCLE = "mdi:grass"
+
+SERVICE_MOVE_TO_CYCLE = "move_to_cycle"
+
+SERVICE_CREATE_CYCLE = "create_cycle"
+
+# Aggregation Methoden
+AGGREGATION_MEDIAN = "median"
+AGGREGATION_MEAN = "mean"
+AGGREGATION_MIN = "min"
+AGGREGATION_MAX = "max"
+
+AGGREGATION_METHODS = [
+    AGGREGATION_MEDIAN,
+    AGGREGATION_MEAN, 
+    AGGREGATION_MIN,
+    AGGREGATION_MAX
+]
+
+# Default Aggregationen pro Sensor-Typ
+DEFAULT_AGGREGATIONS = {
+    'temperature': AGGREGATION_MEAN,
+    'moisture': AGGREGATION_MEDIAN,
+    'conductivity': AGGREGATION_MEDIAN,
+    'illuminance': AGGREGATION_MEAN,
+    'humidity': AGGREGATION_MEAN,
+    'ppfd': AGGREGATION_MEAN,
+    'dli': AGGREGATION_MEAN,
+    'total_integral': AGGREGATION_MEAN
+}
+
+# Config Flow Keys
+CONF_AGGREGATION = "aggregation"
