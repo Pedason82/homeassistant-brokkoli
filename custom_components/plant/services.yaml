@@ -22,3 +22,152 @@ replace_sensor:
       selector:
         entity:
           domain: sensor
+
+remove_plant:
+  description: Löscht eine Pflanze und alle zugehörigen Entities
+  fields:
+    plant_entity:
+      name: Plant entity
+      description: Die zu löschende Pflanze
+      example: plant.my_plant
+      required: true
+      selector:
+        entity:
+          domain: plant
+          integration: plant
+
+create_plant:
+  description: Erstellt eine neue Pflanze
+  fields:
+    name:
+      name: Name
+      description: Name der Pflanze
+      example: "Meine Pflanze"
+      required: true
+      selector:
+        text:
+    plant_emoji:
+      name: Icon
+      default: "🥦"
+      required: false
+      selector:
+        text:
+    strain:
+      name: Strain
+      description: Sortenname für OpenPlantbook Suche
+      example: "White Widow"
+      required: true
+      selector:
+        text:
+    breeder:
+      name: Breeder
+      description: Züchter/Hersteller
+      example: "Green House Seeds"
+      required: true
+      selector:
+        text:
+    growth_phase:
+      name: Growth Phase
+      description: Aktuelle Wachstumsphase
+      required: true
+      default: "Wurzeln"
+      selector:
+        select:
+          options:
+            - "Keimen"
+            - "Wurzeln" 
+            - "Wachstum"
+            - "Blüte"
+            - "Entfernt"
+            - "Geerntet"
+    temperature_sensor:
+      name: Temperature Sensor
+      description: Temperatursensor
+      required: false
+      selector:
+        entity:
+          domain: sensor
+          device_class: temperature
+    moisture_sensor:
+      name: Moisture Sensor  
+      description: Feuchtigkeitssensor
+      required: false
+      selector:
+        entity:
+          domain: sensor
+          device_class: moisture
+    conductivity_sensor:
+      name: Conductivity Sensor
+      description: Leitfähigkeitssensor
+      required: false
+      selector:
+        entity:
+          domain: sensor
+    illuminance_sensor:
+      name: Illuminance Sensor
+      description: Helligkeitssensor
+      required: false
+      selector:
+        entity:
+          domain: sensor
+          device_class: illuminance
+    humidity_sensor:
+      name: Humidity Sensor
+      description: Luftfeuchtigkeitssensor
+      required: false
+      selector:
+        entity:
+          domain: sensor
+          device_class: humidity
+
+move_to_cycle:
+  name: Move to cycle
+  description: Moves one or more plants to a cycle device. If no cycle is specified, removes plants from their current cycle.
+  fields:
+    plant_entity:
+      name: Plant entities
+      description: The plants to move or remove from cycle
+      example: "plant.my_plant"
+      required: true
+      selector:
+        entity:
+          domain: plant
+          multiple: true
+    cycle_entity:
+      name: Cycle entity
+      description: The cycle device to move the plants to. Leave empty to remove from current cycle.
+      example: "cycle.my_cycle"
+      required: false
+      selector:
+        entity:
+          domain: cycle
+
+create_cycle:
+  name: Create cycle
+  description: Creates a new cycle entity.
+  fields:
+    name:
+      name: Name
+      description: Name of the cycle
+      required: true
+      selector:
+        text:
+    plant_emoji:
+      name: Emoji
+      description: Emoji to display next to the cycle name
+      default: "🔄"
+      selector:
+        text:
+
+remove_cycle:
+  name: Remove cycle
+  description: Removes a cycle entity and all its associated entities
+  fields:
+    cycle_entity:
+      name: Cycle entity
+      description: The cycle to remove
+      example: "cycle.my_cycle"
+      required: true
+      selector:
+        entity:
+          domain: cycle
