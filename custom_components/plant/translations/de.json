@@ -3,11 +3,32 @@
   "config": {
     "step": {
       "user": {
-        "title": "Eine Pflanze konfigurieren",
-        "description": "Wenn Sie in den Dropdown-Menüs nicht die richtigen Sensoren finden, können Sie die Sensoren nach Abschluss der Installation hinzufügen",
+        "title": "Gerätetyp auswählen",
+        "description": "Wählen Sie aus, ob Sie eine Pflanze oder einen Zyklus erstellen möchten",
         "data": {
-          "name": "Pflanzenname",
-          "species": "Sorte",
+          "device_type": "Gerätetyp"
+        }
+      },
+      "cycle": {
+        "title": "Zyklus erstellen",
+        "description": "Einen neuen Zyklus konfigurieren",
+        "data": {
+          "name": "Name",
+          "plant_emoji": "Symbol"
+        },
+        "data_description": {
+          "plant_emoji": "Eine große Auswahl findest du auf [emojipedia.org](https://emojipedia.org)"
+        }
+      },
+      "plant": {
+        "title": "Pflanze erstellen",
+        "description": "Eine neue Pflanze konfigurieren",
+        "data": {
+          "name": "Name",
+          "plant_emoji": "Symbol",
+          "strain": "Strain",
+          "breeder": "Breeder",
+          "growth_phase": "Wachstumsphase",
           "temperature_sensor": "Temperatursensor",
           "moisture_sensor": "Bodenfeuchtesensor",
           "conductivity_sensor": "Leitfähigkeitssensor",
@@ -15,25 +36,34 @@
           "humidity_sensor": "Luftfeuchtigkeitssensor"
         },
         "data_description": {
-          "species": "Wird für die Suche in OpenPlantbook verwendet"
-        }
-      },
-      "select_species": {
-        "title": "Sorte aus OpenPlantbook auswählen",
-        "description": "{desc}",
-        "data": {
-          "species": "Sorte"
-        },
-        "menu_options": {
-          "user": "Zurück"
+          "plant_emoji": "Eine große Auswahl findest du auf [emojipedia.org](https://emojipedia.org)"
         }
       },
       "limits": {
         "title": "Grenzwerte festlegen",
-        "description": "# {name}\n![Plant]({entity_picture}){br}\n{extra_desc}Temperatureinheit ist  {temperature_unit}",
+        "description": "# {name}\n![Plant]({entity_picture}){br}\n{extra_desc}Temperatureinheit ist {temperature_unit}",
         "data": {
           "right_plant": "Das ist die Pflanze, die ich gesucht habe",
-          "display_pid": "Anzuzeigende Pflanzenarten",
+          "display_pid": "Strain",
+          "breeder": "Breeder",
+          "sorte": "Sorte",
+          "feminized": "Feminisiert",
+          "flowering_duration": "Blütezeit (Tage)",
+          "effects": "Effekte",
+          "smell": "Geruch",
+          "taste": "Geschmack",
+          "website": "Webseite",
+          "phenotype": "Phänotyp",
+          "hunger": "Hunger",
+          "growth_stretch": "Wuchs-Stretch",
+          "flower_stretch": "Blüte-Stretch",
+          "mold_resistance": "Schimmelresistenz",
+          "difficulty": "Schwierigkeit",
+          "yield": "Ertrag",
+          "notes": "Notizen",
+          "lineage": "Abstammung",
+          "infotext1": "Info Text 1",
+          "infotext2": "Info Text 2",
           "max_moisture": "Maximale Bodenfeuchtigkeit (%)",
           "min_moisture": "Minimale Bodenfeuchtigkeit (%)",
           "max_illuminance": "Maximale Beleuchtungsstärke (lx)",
@@ -58,7 +88,7 @@
         "description": "",
         "data": {
           "check_days": "Beleuchtungsstärke-Kontrolltage",
-          "species": "Species",
+          "species": "Sorte",
           "force_update": "Aktualisierung der Daten aus OpenPlantbook erzwingen",
           "display_pid": "Anzuzeigende Pflanzenarten",
           "temperature_sensor": "Temperatursensor",
