@@ -30,6 +30,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity, async_generate_entity_id
 from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.util import dt_util
 
 from .const import (
     ATTR_CONDUCTIVITY,
@@ -204,14 +205,14 @@ class PlantCurrentConductivity(PlantCurrentStatus):
         self._external_sensor = config.data[FLOW_PLANT_INFO].get(
             FLOW_SENSOR_CONDUCTIVITY
         )
-        self._attr_native_unit_of_measurement = UnitOfConductivity.MICROSIEMENS
+        self._attr_native_unit_of_measurement = UnitOfConductivity.MICROSIEMENS_PER_CM
 
         super().__init__(hass, config, plantdevice)
 
     @property
-    def device_class(self) -> None:
-        """Device class - not defined for conductivity"""
-        return ATTR_CONDUCTIVITY
+    def device_class(self) -> str:
+        """Device class"""
+        return SensorDeviceClass.CONDUCTIVITY
 
 
 class PlantCurrentMoisture(PlantCurrentStatus):
@@ -281,60 +282,6 @@ class PlantCurrentHumidity(PlantCurrentStatus):
     def device_class(self) -> str:
         """Device class"""
         return SensorDeviceClass.HUMIDITY
-
-
-class PlantCurrentPpfd(PlantCurrentStatus):
-    """Entity reporting current PPFD calculated from LX"""
-
-    def __init__(
-        self, hass: HomeAssistant, config: ConfigEntry, plantdevice: Entity
-    ) -> None:
-        """Initialize the sensor"""
-        self._attr_name = f"{config.data[FLOW_PLANT_INFO][ATTR_NAME]} {READING_PPFD}"
-
-        self._attr_unique_id = f"{config.entry_id}-current-ppfd"
-        self._attr_unit_of_measurement = UNIT_PPFD
-        self._attr_native_unit_of_measurement = UNIT_PPFD
-
-        self._plant = plantdevice
-
-        self._external_sensor = self._plant.sensor_illuminance.entity_id
-        self._attr_icon = "mdi:white-balance-sunny"
-        super().__init__(hass, config, plantdevice)
-
-    @property
-    def device_class(self) -> str:
-        """Device class"""
-        return SensorDeviceClass.ILLUMINANCE
-
-    def ppfd(self, value: float | int | str) -> float | str:
-        """
-        Returns a calculated PPFD-value from the lx-value
-
-        See https://community.home-assistant.io/t/light-accumulation-for-xiaomi-flower-sensor/111180/3
-        https://www.apogeeinstruments.com/conversion-ppfd-to-lux/
-        μmol/m²/s
-        """
-        if value is not None and value != STATE_UNAVAILABLE and value != STATE_UNKNOWN:
-            value = float(value) * DEFAULT_LUX_TO_PPFD / 1000000
-
-        return value
-
-    @callback
-    def state_changed(self, entity_id: str, new_state: str) -> None:
-        """Run on every update to allow for changes from the GUI and service call"""
-        if not self.hass.states.get(self.entity_id):
-            return
-        if self._external_sensor != self._plant.sensor_illuminance.entity_id:
-            self.replace_external_sensor(self._plant.sensor_illuminance.entity_id)
-        if self._external_sensor:
-            external_sensor = self.hass.states.get(self._external_sensor)
-            if external_sensor:
-                self._attr_native_value = self.ppfd(external_sensor.state)
-            else:
-                self._attr_native_value = STATE_UNKNOWN
-        else:
-            self._attr_native_value = STATE_UNKNOWN
 
 
 class PlantTotalLightIntegral(IntegrationSensor):
