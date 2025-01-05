@@ -218,8 +218,32 @@ class PlantGrowthPhaseSelect(SelectEntity, RestoreEntity):
         self._attr_current_option = option
         self.async_write_ha_state()
 
+        # Wenn ein Cycle seine Phase ändert, aktualisiere alle Member Plants
+        if self._plant.device_type == DEVICE_TYPE_CYCLE:
+            device_registry = dr.async_get(self._hass)
+            
+            # Finde das Cycle Device
+            cycle_device = device_registry.async_get_device(
+                identifiers={(DOMAIN, self._plant.unique_id)}
+            )
+            
+            if cycle_device:
+                # Finde alle zugehörigen Plant Devices
+                for device_entry in device_registry.devices.values():
+                    if device_entry.via_device_id == cycle_device.id:
+                        # Finde die zugehörige Plant Entity
+                        for entry_id in self._hass.data[DOMAIN]:
+                            if ATTR_PLANT in self._hass.data[DOMAIN][entry_id]:
+                                plant = self._hass.data[DOMAIN][entry_id][ATTR_PLANT]
+                                if (plant.device_type != DEVICE_TYPE_CYCLE and 
+                                    plant.unique_id == next(iter(device_entry.identifiers))[1]):
+                                    # Aktualisiere die Growth Phase der Plant
+                                    if plant.growth_phase_select:
+                                        await plant.growth_phase_select.async_select_option(option)
+                                    break
+
         # Wenn eine Plant ihre Phase ändert, aktualisiere den zugehörigen Cycle
-        if self._plant.device_type == DEVICE_TYPE_PLANT:
+        elif self._plant.device_type == DEVICE_TYPE_PLANT:
             device_registry = dr.async_get(self._hass)
             plant_device = device_registry.async_get_device(
                 identifiers={(DOMAIN, self._plant.unique_id)}
