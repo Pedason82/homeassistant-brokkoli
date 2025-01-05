@@ -98,6 +98,7 @@ from .const import (
     AGGREGATION_MEAN,
     AGGREGATION_MIN,
     AGGREGATION_MAX,
+    AGGREGATION_ORIGINAL,
     DEFAULT_AGGREGATIONS,
 )
 from .plant_helpers import PlantHelper
@@ -130,6 +131,18 @@ async def _get_next_id(hass: HomeAssistant, device_type: str) -> str:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Plant from a config entry."""
+    
+    # Wenn dies ein Konfigurationsknoten ist, keine Entities erstellen
+    if entry.data.get("is_config", False):
+        hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+            "config": entry.data[FLOW_PLANT_INFO]
+        }
+        # Keine Platforms laden für den Konfigurationsknoten
+        return True
+
+    # Normale Plant/Cycle Initialisierung fortsetzen
+    plant_data = entry.data[FLOW_PLANT_INFO]
+    
     hass.data.setdefault(DOMAIN, {})
     if FLOW_PLANT_INFO not in entry.data:
         return True
@@ -297,6 +310,12 @@ async def _plant_add_to_device_registry(
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    
+    # Wenn dies ein Konfigurationsknoten ist, einfach die Daten entfernen
+    if entry.data.get("is_config", False):
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+        return True
+
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if unload_ok:
@@ -382,7 +401,7 @@ class PlantDevice(Entity):
         self._data_source = config.data[FLOW_PLANT_INFO].get(DATA_SOURCE)
         self._plant_id = None  # Neue Property für die ID
         
-        # Get data from config
+        # Get data from config - nur einmal initialisieren
         self._plant_info = config.data.get(FLOW_PLANT_INFO, {})
         
         # Get entity_picture from options or from initial config
@@ -482,6 +501,24 @@ class PlantDevice(Entity):
             self._config.options.get("flowering_duration_aggregation") or
             self._plant_info.get("flowering_duration_aggregation", "mean")
         )
+        
+        # Aggregationsmethode für pot_size
+        self.pot_size_aggregation = (
+            self._config.options.get("pot_size_aggregation") or
+            self._plant_info.get("pot_size_aggregation", "mean")
+        )
+
+        # Aggregationsmethode für water_capacity
+        self.water_capacity_aggregation = (
+            self._config.options.get("water_capacity_aggregation") or
+            self._plant_info.get("water_capacity_aggregation", "mean")
+        )
+
+        # Neue Property für pot_size
+        self.pot_size = None
+
+        # Neue Property für water_capacity
+        self.water_capacity = None
 
     @property
     def entity_category(self) -> None:
@@ -506,7 +543,7 @@ class PlantDevice(Entity):
         # Basis device_info
         info = {
             "identifiers": {(DOMAIN, self.unique_id)},
-            "name": f"{self.name} {self._plant_info.get('plant_emoji', '🌿')}",
+            "name": self.name,
             "serial_number": self._plant_id,
         }
         
@@ -725,6 +762,8 @@ class PlantDevice(Entity):
             self.dli,
             self.ppfd,
             self.total_integral,
+            self.moisture_consumption,
+            self.fertilizer_consumption,
         ]
 
     def add_image(self, image_url: str | None) -> None:
@@ -790,10 +829,12 @@ class PlantDevice(Entity):
         self.dli = dli
         self.plant_complete = True
 
-    def add_calculations(self, ppfd: Entity, total_integral: Entity) -> None:
+    def add_calculations(self, ppfd: Entity, total_integral: Entity, moisture_consumption: Entity, fertilizer_consumption: Entity) -> None:
         """Add the intermediate calculation entities"""
         self.ppfd = ppfd
         self.total_integral = total_integral
+        self.moisture_consumption = moisture_consumption
+        self.fertilizer_consumption = fertilizer_consumption
 
     def add_growth_phase_select(self, growth_phase_select: Entity) -> None:
         """Add the growth phase select entity."""
@@ -810,6 +851,21 @@ class PlantDevice(Entity):
 
         if self.device_type == DEVICE_TYPE_CYCLE:
             # Cycle-Update-Logik
+            if self.sensor_temperature is not None:
+                temperature = self._median_sensors.get('temperature')
+                if temperature is not None:
+                    known_state = True
+                    if float(temperature) < float(self.min_temperature.state):
+                        self.temperature_status = STATE_LOW
+                        if self.temperature_trigger:
+                            new_state = STATE_PROBLEM
+                    elif float(temperature) > float(self.max_temperature.state):
+                        self.temperature_status = STATE_HIGH
+                        if self.temperature_trigger:
+                            new_state = STATE_PROBLEM
+                    else:
+                        self.temperature_status = STATE_OK
+
             if self.sensor_moisture is not None:
                 moisture = self._median_sensors.get('moisture')
                 if moisture is not None:
@@ -840,7 +896,50 @@ class PlantDevice(Entity):
                     else:
                         self.conductivity_status = STATE_OK
 
-            # Weitere Cycle-Sensor-Prüfungen...
+            if self.sensor_illuminance is not None:
+                illuminance = self._median_sensors.get('illuminance')
+                if illuminance is not None:
+                    known_state = True
+                    if float(illuminance) < float(self.min_illuminance.state):
+                        self.illuminance_status = STATE_LOW
+                        if self.illuminance_trigger:
+                            new_state = STATE_PROBLEM
+                    elif float(illuminance) > float(self.max_illuminance.state):
+                        self.illuminance_status = STATE_HIGH
+                        if self.illuminance_trigger:
+                            new_state = STATE_PROBLEM
+                    else:
+                        self.illuminance_status = STATE_OK
+
+            if self.sensor_humidity is not None:
+                humidity = self._median_sensors.get('humidity')
+                if humidity is not None:
+                    known_state = True
+                    if float(humidity) < float(self.min_humidity.state):
+                        self.humidity_status = STATE_LOW
+                        if self.humidity_trigger:
+                            new_state = STATE_PROBLEM
+                    elif float(humidity) > float(self.max_humidity.state):
+                        self.humidity_status = STATE_HIGH
+                        if self.humidity_trigger:
+                            new_state = STATE_PROBLEM
+                    else:
+                        self.humidity_status = STATE_OK
+
+            if self.dli is not None:
+                dli = self._median_sensors.get('dli')
+                if dli is not None:
+                    known_state = True
+                    if float(dli) < float(self.min_dli.state):
+                        self.dli_status = STATE_LOW
+                        if self.dli_trigger:
+                            new_state = STATE_PROBLEM
+                    elif float(dli) > float(self.max_dli.state):
+                        self.dli_status = STATE_HIGH
+                        if self.dli_trigger:
+                            new_state = STATE_PROBLEM
+                    else:
+                        self.dli_status = STATE_OK
 
         else:
             # Plant-Update-Logik
@@ -874,7 +973,51 @@ class PlantDevice(Entity):
                     else:
                         self.conductivity_status = STATE_OK
 
-            # Weitere Plant-Sensor-Prüfungen...
+            # Füge die fehlenden Sensor-Prüfungen hinzu
+            if self.sensor_temperature is not None:
+                temperature = self.sensor_temperature.state
+                if temperature is not None and temperature != STATE_UNAVAILABLE and temperature != STATE_UNKNOWN:
+                    known_state = True
+                    if float(temperature) < float(self.min_temperature.state):
+                        self.temperature_status = STATE_LOW
+                        if self.temperature_trigger:
+                            new_state = STATE_PROBLEM
+                    elif float(temperature) > float(self.max_temperature.state):
+                        self.temperature_status = STATE_HIGH
+                        if self.temperature_trigger:
+                            new_state = STATE_PROBLEM
+                    else:
+                        self.temperature_status = STATE_OK
+
+            if self.sensor_illuminance is not None:
+                illuminance = self.sensor_illuminance.state
+                if illuminance is not None and illuminance != STATE_UNAVAILABLE and illuminance != STATE_UNKNOWN:
+                    known_state = True
+                    if float(illuminance) < float(self.min_illuminance.state):
+                        self.illuminance_status = STATE_LOW
+                        if self.illuminance_trigger:
+                            new_state = STATE_PROBLEM
+                    elif float(illuminance) > float(self.max_illuminance.state):
+                        self.illuminance_status = STATE_HIGH
+                        if self.illuminance_trigger:
+                            new_state = STATE_PROBLEM
+                    else:
+                        self.illuminance_status = STATE_OK
+
+            if self.dli is not None:
+                dli = self.dli.state
+                if dli is not None and dli != STATE_UNAVAILABLE and dli != STATE_UNKNOWN:
+                    known_state = True
+                    if float(dli) < float(self.min_dli.state):
+                        self.dli_status = STATE_LOW
+                        if self.dli_trigger:
+                            new_state = STATE_PROBLEM
+                    elif float(dli) > float(self.max_dli.state):
+                        self.dli_status = STATE_HIGH
+                        if self.dli_trigger:
+                            new_state = STATE_PROBLEM
+                    else:
+                        self.dli_status = STATE_OK
 
         if not known_state:
             new_state = STATE_UNKNOWN
@@ -909,47 +1052,73 @@ class PlantDevice(Entity):
         return ICON_DEVICE_PLANT
 
     def add_member_plant(self, plant_entity_id: str) -> None:
-        """Fügt eine Plant zum Cycle hinzu."""
-        if self.device_type == DEVICE_TYPE_CYCLE and plant_entity_id not in self._member_plants:
-            _LOGGER.debug("Adding plant %s to cycle %s", plant_entity_id, self.entity_id)
+        """Add a plant to the cycle."""
+        if plant_entity_id not in self._member_plants:
             self._member_plants.append(plant_entity_id)
+            self._update_cycle_attributes()
             self._update_median_sensors()
+            
             # Aktualisiere Growth Phase sofort
             if self.growth_phase_select:
                 self._hass.async_create_task(
                     self.growth_phase_select._update_cycle_phase()
+                )
+            
+            # Aktualisiere die Flowering Duration
+            if self.flowering_duration:
+                self._hass.async_create_task(
+                    self.flowering_duration._update_cycle_duration()
+                )
+                
+            # Aktualisiere die Topfgröße
+            if self.pot_size:
+                self._hass.async_create_task(
+                    self.pot_size._update_cycle_pot_size()
                 )
 
     def remove_member_plant(self, plant_entity_id: str) -> None:
-        """Entfernt eine Plant aus dem Cycle."""
+        """Remove a plant from the cycle."""
         if plant_entity_id in self._member_plants:
             _LOGGER.debug("Removing plant %s from cycle %s", plant_entity_id, self.entity_id)
             self._member_plants.remove(plant_entity_id)
+            self._update_cycle_attributes()
             self._update_median_sensors()
+
             # Aktualisiere Growth Phase sofort
             if self.growth_phase_select:
                 self._hass.async_create_task(
                     self.growth_phase_select._update_cycle_phase()
                 )
+                
+            # Aktualisiere die Flowering Duration
+            if self.flowering_duration:
+                self._hass.async_create_task(
+                    self.flowering_duration._update_cycle_duration()
+                )
+                
+            # Aktualisiere die Topfgröße
+            if self.pot_size:
+                self._hass.async_create_task(
+                    self.pot_size._update_cycle_pot_size()
+                )
 
     def _update_median_sensors(self) -> None:
-        """Aktualisiert die aggregierten Sensoren basierend auf den Member Plants."""
-        if self.device_type != DEVICE_TYPE_CYCLE:
+        """Aktualisiere die Median-Werte für alle Sensoren."""
+        if not self._member_plants:
             return
 
-        _LOGGER.debug("Updating aggregated sensors for cycle %s with plants: %s", 
-                     self.entity_id, self._member_plants)
-
-        # Sammle alle Sensor-Werte der Member Plants
+        # Dictionary für die Sensor-Werte
         sensor_values = {
-            'temperature': [],
+            'temperature': [], 
             'moisture': [],
             'conductivity': [], 
             'illuminance': [],
             'humidity': [],
             'ppfd': [],
             'dli': [],
-            'total_integral': []
+            'total_integral': [],
+            'moisture_consumption': [],
+            'fertilizer_consumption': []
         }
 
         for plant_id in self._member_plants:
@@ -974,18 +1143,26 @@ class PlantDevice(Entity):
                 'humidity': plant.sensor_humidity,
                 'ppfd': plant.ppfd,
                 'dli': plant.dli,
-                'total_integral': plant.total_integral
+                'total_integral': plant.total_integral,
+                'moisture_consumption': plant.moisture_consumption,
+                'fertilizer_consumption': plant.fertilizer_consumption,
             }
 
             for sensor_type, sensor in sensors_to_check.items():
-                if sensor and sensor.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+                if sensor and hasattr(sensor, 'state') and sensor.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE, None):
                     try:
-                        sensor_values[sensor_type].append(float(sensor.state))
+                        # Für DLI/PPFD/total_integral/consumption speichern wir auch den Sensor selbst
+                        if sensor_type in ['ppfd', 'dli', 'total_integral', 
+                                         'moisture_consumption', 'fertilizer_consumption']:
+                            sensor_values[sensor_type].append((float(sensor.state), sensor))
+                        else:
+                            sensor_values[sensor_type].append(float(sensor.state))
                         _LOGGER.debug("Added %s value %s from plant %s", 
                                     sensor_type, sensor.state, plant_id)
-                    except (ValueError, TypeError):
-                        _LOGGER.warning("Could not convert %s value %s to float", 
-                                      sensor_type, sensor.state)
+                    except (TypeError, ValueError) as ex:
+                        _LOGGER.debug("Could not convert %s value %s: %s",
+                                    sensor_type, sensor.state, ex)
+                        continue
 
         # Berechne Aggregate
         for sensor_type, values in sensor_values.items():
@@ -994,6 +1171,20 @@ class PlantDevice(Entity):
                     sensor_type, DEFAULT_AGGREGATIONS.get(sensor_type, AGGREGATION_MEDIAN)
                 )
                 
+                # Spezielle Behandlung für Sensoren mit Original-Berechnung
+                if sensor_type in ['ppfd', 'dli', 'total_integral', 
+                                 'moisture_consumption', 'fertilizer_consumption'] and aggregation_method == AGGREGATION_ORIGINAL:
+                    # Bei Original-Berechnung nehmen wir den ersten gültigen Sensor
+                    if values:
+                        self._median_sensors[sensor_type] = values[0] if isinstance(values[0], (int, float)) else values[0][0]
+                        _LOGGER.debug("Using original calculation for %s from first valid sensor", sensor_type)
+                    continue
+
+                # Für alle anderen Fälle extrahieren wir nur die Werte
+                if sensor_type in ['ppfd', 'dli', 'total_integral', 
+                                 'moisture_consumption', 'fertilizer_consumption']:
+                    values = [v[0] for v in values]  # Extrahiere nur die Werte, nicht die Sensoren
+
                 if aggregation_method == AGGREGATION_MEAN:
                     self._median_sensors[sensor_type] = sum(values) / len(values)
                 elif aggregation_method == AGGREGATION_MIN:
@@ -1014,9 +1205,130 @@ class PlantDevice(Entity):
             else:
                 self._median_sensors[sensor_type] = None
 
+    def _update_cycle_attributes(self) -> None:
+        """Aktualisiert die Attribute des Cycles basierend auf den Member Plants."""
+        if self.device_type != DEVICE_TYPE_CYCLE:
+            return
+
+        # Sammle Attribute von allen Member Plants
+        strains = set()
+        breeders = set()
+        sortes = set()
+        feminized = set()
+        effects = set()
+        smells = set()
+        tastes = set()
+        phenotypes = set()
+        hungers = set()
+        growth_stretches = set()
+        flower_stretches = set()
+        mold_resistances = set()
+        difficulties = set()
+        yields = set()
+        notes = set()
+        websites = set()
+
+        for plant_id in self._member_plants:
+            for entry_id in self._hass.data[DOMAIN]:
+                if ATTR_PLANT in self._hass.data[DOMAIN][entry_id]:
+                    plant = self._hass.data[DOMAIN][entry_id][ATTR_PLANT]
+                    if plant.entity_id == plant_id:
+                        # Füge nicht-leere Werte zu den Sets hinzu
+                        if plant._plant_info.get(ATTR_STRAIN):
+                            strains.add(plant._plant_info[ATTR_STRAIN])
+                        if plant._plant_info.get(ATTR_BREEDER):
+                            breeders.add(plant._plant_info[ATTR_BREEDER])
+                        if plant._plant_info.get("sorte"):
+                            sortes.add(plant._plant_info["sorte"])
+                        if plant._plant_info.get("feminized"):
+                            feminized.add(plant._plant_info["feminized"])
+                        if plant._plant_info.get("effects"):
+                            effects.add(plant._plant_info["effects"])
+                        if plant._plant_info.get("smell"):
+                            smells.add(plant._plant_info["smell"])
+                        if plant._plant_info.get("taste"):
+                            tastes.add(plant._plant_info["taste"])
+                        if plant._plant_info.get(ATTR_PHENOTYPE):
+                            phenotypes.add(plant._plant_info[ATTR_PHENOTYPE])
+                        if plant._plant_info.get(ATTR_HUNGER):
+                            hungers.add(plant._plant_info[ATTR_HUNGER])
+                        if plant._plant_info.get(ATTR_GROWTH_STRETCH):
+                            growth_stretches.add(plant._plant_info[ATTR_GROWTH_STRETCH])
+                        if plant._plant_info.get(ATTR_FLOWER_STRETCH):
+                            flower_stretches.add(plant._plant_info[ATTR_FLOWER_STRETCH])
+                        if plant._plant_info.get(ATTR_MOLD_RESISTANCE):
+                            mold_resistances.add(plant._plant_info[ATTR_MOLD_RESISTANCE])
+                        if plant._plant_info.get(ATTR_DIFFICULTY):
+                            difficulties.add(plant._plant_info[ATTR_DIFFICULTY])
+                        if plant._plant_info.get(ATTR_YIELD):
+                            yields.add(plant._plant_info[ATTR_YIELD])
+                        if plant._plant_info.get(ATTR_NOTES):
+                            notes.add(plant._plant_info[ATTR_NOTES])
+                        if plant._plant_info.get("website"):
+                            websites.add(plant._plant_info["website"])
+                        break
+
+        # Aktualisiere die Plant Info mit den aggregierten Werten
+        self._plant_info.update({
+            ATTR_STRAIN: ", ".join(sorted(strains)) if strains else "",
+            ATTR_BREEDER: ", ".join(sorted(breeders)) if breeders else "",
+            "sorte": ", ".join(sorted(sortes)) if sortes else "",
+            "feminized": ", ".join(sorted(feminized)) if feminized else "",
+            "effects": ", ".join(sorted(effects)) if effects else "",
+            "smell": ", ".join(sorted(smells)) if smells else "",
+            "taste": ", ".join(sorted(tastes)) if tastes else "",
+            ATTR_PHENOTYPE: ", ".join(sorted(phenotypes)) if phenotypes else "",
+            ATTR_HUNGER: ", ".join(sorted(hungers)) if hungers else "",
+            ATTR_GROWTH_STRETCH: ", ".join(sorted(growth_stretches)) if growth_stretches else "",
+            ATTR_FLOWER_STRETCH: ", ".join(sorted(flower_stretches)) if flower_stretches else "",
+            ATTR_MOLD_RESISTANCE: ", ".join(sorted(mold_resistances)) if mold_resistances else "",
+            ATTR_DIFFICULTY: ", ".join(sorted(difficulties)) if difficulties else "",
+            ATTR_YIELD: ", ".join(sorted(yields)) if yields else "",
+            ATTR_NOTES: ", ".join(sorted(notes)) if notes else "",
+            "website": ", ".join(sorted(websites)) if websites else "",
+        })
+
+        # Aktualisiere den State
+        self.async_write_ha_state()
+
     def add_cycle_select(self, cycle_select: Entity) -> None:
         """Füge den Cycle Select Helper hinzu."""
         self.cycle_select = cycle_select
+
+    def add_pot_size(self, pot_size) -> None:
+        """Fügt den Pot Size Helper hinzu."""
+        self.pot_size = pot_size
+
+    def add_water_capacity(self, water_capacity) -> None:
+        """Add water capacity entity."""
+        self.water_capacity = water_capacity
+
+    @property
+    def name(self) -> str:
+        """Return the name with emojis for the device."""
+        name = self._plant_info[ATTR_NAME]
+        # Füge Emojis für das Device hinzu
+        if self.device_type == DEVICE_TYPE_CYCLE and " 🔄" not in name:
+            name = f"{name} {self._plant_info.get('plant_emoji', '🔄')}"
+        elif self.device_type == DEVICE_TYPE_PLANT and " 🌿" not in name:
+            name = f"{name} {self._plant_info.get('plant_emoji', '🌿')}"
+        return name
+
+    @property
+    def _name(self) -> str:
+        """Return the clean name without emojis for entities."""
+        name = self._plant_info[ATTR_NAME]
+        # Entferne Emojis für die Entities
+        if self.device_type == DEVICE_TYPE_CYCLE:
+            name = name.replace(" 🔄", "")
+        elif " 🌿" in name:
+            name = name.replace(" 🌿", "")
+        return name
+
+    @property
+    def has_entity_name(self) -> bool:
+        """Return False to use raw entity names without device prefix."""
+        return False
 
 
 async def async_remove_config_entry_device(
@@ -1030,6 +1342,17 @@ async def async_remove_config_entry_device(
         device_entry.id,
         config_entry.data
     )
+    
+    # Prüfe ob dies der Konfigurationsknoten ist
+    if config_entry.data.get("is_config", False):
+        # Prüfe ob noch andere Plant/Cycle Einträge existieren
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            if not entry.data.get("is_config", False):  # Wenn es ein Plant/Cycle ist
+                _LOGGER.warning(
+                    "Cannot remove configuration node while plants/cycles exist. "
+                    "Please remove all plants and cycles first."
+                )
+                return False
     
     device_registry = dr.async_get(hass)
     
