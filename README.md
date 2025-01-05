@@ -1,6 +1,28 @@
-# Alternative plants component for Home Assistant
+# Alternative alternative plants component for Home Assistant - Work in Progress
 
-This integration can automatically fetch data from [OpenPlantBook](https://open.plantbook.io/docs.html) if you are a registered user. Registration is free.
+Plant component for Home Assistant for ... harvestable plants.
+This integration, in combination with [homeassistant-seedfinder](https://github.com/dingausmwald/homeassistant-seedfinder), can fetch data from [seedfinder].
+
+Added a bunch of features, like Cycle Devices to Group Plants and Aggregate Sensors.
+
+Added Helper:
+ Flowering Duration
+ Growth Phase
+ Pot Size
+ Water Capacity
+ 
+Diagnostic:
+ Water Consumption
+ Fertilizer Consumption
+
+Alot of attributes coming from seedfinder, like picture, flowering duration, Effects, Smell, Taste, Website, Infotext, Lineage..
+and some i thought are from interest lik Phenotype, Hunger, Growth and Flower Stretch, Mold resistance, difficulty..
+
+Some Services Like deleting plants, adding member to cycle, cloning plants..
+
+A function to normalize the moisture (and with this factor) the conductivity sensor.
+
+A configuration entity to set default values for new plants and cycles (thresholds and stuff since they are not coming from openplantbook anymore)
 
 # BREAKING CHANGES
 
@@ -8,26 +30,12 @@ This integration can automatically fetch data from [OpenPlantBook](https://open.
 >
 > **This integration is *not* compatible with the original plant integration in HA.**
 
-> **Note** 
->
-> This integration will try to convert all `plant:` entries from `configuration.yaml` to the new format.  After migration, you can (and should) remove your `plant:` entries from your YAML-configuration.   
-> If something goes wrong during migration, delete all the plants from the UI, and correct any problems in your yaml config.  Then they will be migrated again at next restart.  Auto migration will not be done if there are existing plants of the new format already registered in HA.
-
-> **Warning**
-> 
-> Please notice that the `entity_id` of the plants will **NOT** be preserved during auto-migration.  Also, since the "layout" of the new integration is completely different from the old one, you probably have to update and modify any automations, scripts, blueprints etc. you have made based on the old version.
->
-> Make sure you check you plant settings after the first restart. You can find the configuration options in the Integrations page under Settings in Home Assistant.
-
-Plants are set up in the UI and all configuration of your plants can be managed there or by automations and scripts.
-
-All existing entries in `configuration.yaml` from version 1 will be migrated to the new format automatically.  Notice that some options (like `warn_low_brightness`) will not be migrated over, but can be easily changed in the UI configuration after migration. 
-
 ## Plants are now treated as _devices_
 
 This means that the main plant entity references other entities, and they are grouped togheter in the GUI as a single device.
 
-![image](https://user-images.githubusercontent.com/203184/184302443-9d9fb1f2-4b2a-48bb-a479-1cd3a6e634af.png)
+![image](https://github.com/user-attachments/assets/2f252023-b921-48a4-9675-bdceaae744f2)
+
 
 This also means that this version is _not_ compatible with earlier releases from this repository, or with the "plant" integration that is part of your default Home Assistant installation 
 
