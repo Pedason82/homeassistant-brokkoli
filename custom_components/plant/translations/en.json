@@ -177,6 +177,58 @@
           "description": "Humidity sensor entity"
         }
       }
+    },
+    "clone_plant": {
+      "name": "Clone Plant",
+      "description": "Create a clone/cutting of an existing plant device.",
+      "fields": {
+        "source_entity_id": {
+          "name": "Source Plant",
+          "description": "The plant device to clone"
+        },
+        "name": {
+          "name": "Name", 
+          "description": "Name for the new plant clone"
+        }
+      }
+    },
+    "update_plant_attributes": {
+      "name": "Update plant attributes",
+      "description": "Update the attributes of a plant",
+      "fields": {
+        "phenotype": {
+          "name": "Phenotype",
+          "description": "Plant phenotype"
+        },
+        "hunger": {
+          "name": "Hunger",
+          "description": "Plant nutrient requirements"
+        },
+        "growth_stretch": {
+          "name": "Growth stretch",
+          "description": "Plant growth stretch characteristics"
+        },
+        "flower_stretch": {
+          "name": "Flower stretch",
+          "description": "Plant flower stretch characteristics" 
+        },
+        "mold_resistance": {
+          "name": "Mold resistance",
+          "description": "Plant mold resistance level"
+        },
+        "difficulty": {
+          "name": "Difficulty", 
+          "description": "Growing difficulty level"
+        },
+        "yield": {
+          "name": "Yield",
+          "description": "Expected yield information"
+        },
+        "notes": {
+          "name": "Notes",
+          "description": "Additional notes about the plant"
+        }
+      }
     }
   }
 }
