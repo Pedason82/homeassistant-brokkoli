@@ -48,6 +48,8 @@ READING_PPFD = "ppfd (mol)"
 READING_MMOL = "mmol"
 READING_MOL = "mol"
 READING_DLI = "dli"
+READING_MOISTURE_CONSUMPTION = "water consumption"
+READING_FERTILIZER_CONSUMPTION = "fertilizer consumption"
 
 
 ATTR_MAX_ILLUMINANCE_HISTORY = "max_illuminance"
@@ -91,6 +93,7 @@ UNIT_MICRO_PPFD = "μmol/s⋅m²"
 UNIT_DLI = "mol/d⋅m²"
 UNIT_MICRO_DLI = "μmol/d⋅m²"
 UNIT_CONDUCTIVITY = "μS/cm"
+UNIT_VOLUME = "L"
 
 FLOW_WRONG_PLANT = "wrong_plant"
 FLOW_RIGHT_PLANT = "right_plant"
@@ -126,6 +129,8 @@ ICON_ILLUMINANCE = "mdi:brightness-6"
 ICON_MOISTURE = "mdi:water"
 ICON_PPFD = "mdi:white-balance-sunny"
 ICON_TEMPERATURE = "mdi:thermometer"
+ICON_WATER_CONSUMPTION = "mdi:water-pump"
+ICON_FERTILIZER_CONSUMPTION = "mdi:chart-line-variant"
 
 OPB_GET = "get"
 OPB_SEARCH = "search"
@@ -238,16 +243,18 @@ SERVICE_CREATE_PLANT = "create_plant"
 # Neue Konstanten für Device Types
 DEVICE_TYPE_PLANT = "plant"
 DEVICE_TYPE_CYCLE = "cycle"
+DEVICE_TYPE_CONFIG = "config"  # Neuer Gerätetyp für Konfiguration
 ATTR_DEVICE_TYPE = "device_type"
 
 DEVICE_TYPES = [
     DEVICE_TYPE_PLANT,
     DEVICE_TYPE_CYCLE
-]
+]  # Config wird nicht in der Auswahl angezeigt
 
 # Icons für Device Types
 ICON_DEVICE_PLANT = "mdi:flower-outline"
 ICON_DEVICE_CYCLE = "mdi:grass"
+ICON_DEVICE_CONFIG = "mdi:cog"  # Icon für Konfiguration
 
 SERVICE_MOVE_TO_CYCLE = "move_to_cycle"
 
@@ -258,8 +265,18 @@ AGGREGATION_MEDIAN = "median"
 AGGREGATION_MEAN = "mean"
 AGGREGATION_MIN = "min"
 AGGREGATION_MAX = "max"
+AGGREGATION_ORIGINAL = "original"  # Neue Methode für DLI/PPFD Berechnungen
 
 AGGREGATION_METHODS = [
+    AGGREGATION_MEDIAN,
+    AGGREGATION_MEAN, 
+    AGGREGATION_MIN,
+    AGGREGATION_MAX
+]
+
+# Erweiterte Methoden für DLI/PPFD
+AGGREGATION_METHODS_EXTENDED = [
+    AGGREGATION_ORIGINAL,  # Original zuerst, da dies der Standardwert sein soll
     AGGREGATION_MEDIAN,
     AGGREGATION_MEAN, 
     AGGREGATION_MIN,
@@ -273,10 +290,44 @@ DEFAULT_AGGREGATIONS = {
     'conductivity': AGGREGATION_MEDIAN,
     'illuminance': AGGREGATION_MEAN,
     'humidity': AGGREGATION_MEAN,
-    'ppfd': AGGREGATION_MEAN,
-    'dli': AGGREGATION_MEAN,
-    'total_integral': AGGREGATION_MEAN
+    'ppfd': AGGREGATION_ORIGINAL,
+    'dli': AGGREGATION_ORIGINAL,
+    'total_integral': AGGREGATION_ORIGINAL,
+    'moisture_consumption': AGGREGATION_ORIGINAL,
+    'fertilizer_consumption': AGGREGATION_ORIGINAL,
 }
 
 # Config Flow Keys
 CONF_AGGREGATION = "aggregation"
+
+# Neue Konstanten für Sensor-Normalisierung
+ATTR_NORMALIZE_MOISTURE = "normalize_moisture"
+ATTR_NORMALIZE_WINDOW = "normalize_window"
+ATTR_NORMALIZE_PERCENTILE = "normalize_percentile"
+DEFAULT_NORMALIZE_WINDOW = 7  # Tage
+DEFAULT_NORMALIZE_PERCENTILE = 95
+
+# Füge die neue Service-Konstante hinzu
+SERVICE_CLONE_PLANT = "clone_plant"
+
+# Neue Konstante für Topfgröße
+ATTR_POT_SIZE = "pot_size"
+DEFAULT_POT_SIZE = 0.4  # 0,4 Liter als Standardwert
+
+# Neue Konstante für Wasserkapazität
+ATTR_WATER_CAPACITY = "water_capacity"
+DEFAULT_WATER_CAPACITY = 50  # 50% als Standardwert
+
+# Konstanten für Default-Werte
+CONF_DEFAULT_MAX_MOISTURE = "default_max_moisture"
+CONF_DEFAULT_MIN_MOISTURE = "default_min_moisture"
+CONF_DEFAULT_MAX_ILLUMINANCE = "default_max_illuminance"
+CONF_DEFAULT_MIN_ILLUMINANCE = "default_min_illuminance"
+CONF_DEFAULT_MAX_DLI = "default_max_dli"
+CONF_DEFAULT_MIN_DLI = "default_min_dli"
+CONF_DEFAULT_MAX_TEMPERATURE = "default_max_temperature"
+CONF_DEFAULT_MIN_TEMPERATURE = "default_min_temperature"
+CONF_DEFAULT_MAX_CONDUCTIVITY = "default_max_conductivity"
+CONF_DEFAULT_MIN_CONDUCTIVITY = "default_min_conductivity"
+CONF_DEFAULT_MAX_HUMIDITY = "default_max_humidity"
+CONF_DEFAULT_MIN_HUMIDITY = "default_min_humidity"
