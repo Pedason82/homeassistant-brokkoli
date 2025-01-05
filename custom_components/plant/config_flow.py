@@ -12,12 +12,16 @@ import voluptuous as vol
 
 # Home Assistant Imports
 from homeassistant import config_entries, data_entry_flow
-from homeassistant.components.sensor import SensorDeviceClass
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+)
 from homeassistant.const import (
     ATTR_DEVICE_CLASS,
     ATTR_DOMAIN,
     ATTR_ENTITY_PICTURE,
     ATTR_NAME,
+    ATTR_UNIT_OF_MEASUREMENT,
+    UnitOfConductivity,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
@@ -26,6 +30,20 @@ from homeassistant.helpers.selector import selector
 
 # Local Imports
 from .const import (
+    AGGREGATION_MEDIAN,
+    AGGREGATION_MEAN,
+    AGGREGATION_MIN,
+    AGGREGATION_MAX,
+    AGGREGATION_METHODS,
+    AGGREGATION_METHODS_EXTENDED,
+    AGGREGATION_ORIGINAL,
+    DEFAULT_AGGREGATIONS,
+    CONF_AGGREGATION,
+    ATTR_NORMALIZE_MOISTURE,
+    ATTR_NORMALIZE_WINDOW,
+    ATTR_NORMALIZE_PERCENTILE,
+    DEFAULT_NORMALIZE_WINDOW,
+    DEFAULT_NORMALIZE_PERCENTILE,
     ATTR_ENTITY,
     ATTR_LIMITS,
     ATTR_OPTIONS,
@@ -33,6 +51,7 @@ from .const import (
     ATTR_SELECT,
     ATTR_SENSORS,
     ATTR_STRAIN,
+    ATTR_BREEDER,
     CONF_MAX_CONDUCTIVITY,
     CONF_MAX_DLI,
     CONF_MAX_HUMIDITY,
@@ -71,7 +90,6 @@ from .const import (
     OPB_DISPLAY_PID,
     DEFAULT_GROWTH_PHASE,
     GROWTH_PHASES,
-    ATTR_BREEDER,
     ATTR_FLOWERING_DURATION,
     ATTR_WEBSITE,
     ATTR_INFOTEXT1,
@@ -91,15 +109,28 @@ from .const import (
     ATTR_IS_NEW_PLANT,
     DEVICE_TYPE_PLANT,
     DEVICE_TYPE_CYCLE,
+    DEVICE_TYPE_CONFIG,
     DEVICE_TYPES,
     ATTR_DEVICE_TYPE,
-    AGGREGATION_MEDIAN,
-    AGGREGATION_MEAN,
-    AGGREGATION_MIN,
-    AGGREGATION_MAX,
-    AGGREGATION_METHODS,
-    DEFAULT_AGGREGATIONS,
-    CONF_AGGREGATION,
+    ATTR_MOISTURE,
+    ATTR_CONDUCTIVITY,
+    ATTR_POT_SIZE,
+    DEFAULT_POT_SIZE,
+    ATTR_WATER_CAPACITY,
+    DEFAULT_WATER_CAPACITY,
+    # Neue Konstanten für Default-Werte
+    CONF_DEFAULT_MAX_MOISTURE,
+    CONF_DEFAULT_MIN_MOISTURE,
+    CONF_DEFAULT_MAX_ILLUMINANCE,
+    CONF_DEFAULT_MIN_ILLUMINANCE,
+    CONF_DEFAULT_MAX_DLI,
+    CONF_DEFAULT_MIN_DLI,
+    CONF_DEFAULT_MAX_TEMPERATURE,
+    CONF_DEFAULT_MIN_TEMPERATURE,
+    CONF_DEFAULT_MAX_CONDUCTIVITY,
+    CONF_DEFAULT_MIN_CONDUCTIVITY,
+    CONF_DEFAULT_MAX_HUMIDITY,
+    CONF_DEFAULT_MIN_HUMIDITY,
 )
 from .plant_helpers import PlantHelper
 
@@ -135,37 +166,92 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_user(self, user_input=None):
-        """Handle the initial step - select device type."""
-        if user_input is not None:
-            self.device_type = user_input.get(ATTR_DEVICE_TYPE)
-            
-            # Wenn der Aufruf vom Service kommt, nutzen wir die vorgegebenen Daten
-            if self.context.get("source_type") == "service":
-                self.device_type = user_input.get(ATTR_DEVICE_TYPE, DEVICE_TYPE_PLANT)
-                if self.device_type == DEVICE_TYPE_CYCLE:
-                    return await self.async_step_cycle(user_input)
-                else:
-                    return await self.async_step_plant(user_input)
-            
-            # Normaler Flow über UI
-            if self.device_type == DEVICE_TYPE_CYCLE:
-                return await self.async_step_cycle()
-            else:
-                return await self.async_step_plant()
+        """Handle a flow initialized by the user."""
+        
+        # Prüfe ob bereits ein Konfigurationsknoten existiert
+        config_entry_id = None
+        for entry in self._async_current_entries():
+            if entry.data.get(FLOW_PLANT_INFO, {}).get(ATTR_DEVICE_TYPE) == DEVICE_TYPE_CONFIG:
+                config_entry_id = entry.entry_id
+                break
+        
+        if config_entry_id is None:
+            # Erstelle den Konfigurationsknoten wenn er noch nicht existiert
+            config_data = {
+                FLOW_PLANT_INFO: {
+                    ATTR_NAME: "Plant Monitor Konfiguration",
+                    ATTR_DEVICE_TYPE: DEVICE_TYPE_CONFIG,
+                    # Standard Default-Werte
+                    CONF_DEFAULT_MAX_MOISTURE: 60,
+                    CONF_DEFAULT_MIN_MOISTURE: 20,
+                    CONF_DEFAULT_MAX_ILLUMINANCE: 30000,
+                    CONF_DEFAULT_MIN_ILLUMINANCE: 1500,
+                    CONF_DEFAULT_MAX_DLI: 30,
+                    CONF_DEFAULT_MIN_DLI: 8,
+                    CONF_DEFAULT_MAX_TEMPERATURE: 30,
+                    CONF_DEFAULT_MIN_TEMPERATURE: 10,
+                    CONF_DEFAULT_MAX_CONDUCTIVITY: 2000,
+                    CONF_DEFAULT_MIN_CONDUCTIVITY: 500,
+                    CONF_DEFAULT_MAX_HUMIDITY: 60,
+                    CONF_DEFAULT_MIN_HUMIDITY: 20,
+                    # Default Icon für Cycle
+                    "default_cycle_icon": "🔄",
+                    # Default Aggregationsmethoden für Cycle
+                    "default_growth_phase_aggregation": "min",
+                    "default_flowering_duration_aggregation": "mean",
+                    "default_pot_size_aggregation": "mean",
+                    "default_water_capacity_aggregation": "mean",
+                    "default_temperature_aggregation": DEFAULT_AGGREGATIONS['temperature'],
+                    "default_moisture_aggregation": DEFAULT_AGGREGATIONS['moisture'],
+                    "default_conductivity_aggregation": DEFAULT_AGGREGATIONS['conductivity'],
+                    "default_illuminance_aggregation": DEFAULT_AGGREGATIONS['illuminance'],
+                    "default_humidity_aggregation": DEFAULT_AGGREGATIONS['humidity'],
+                    "default_ppfd_aggregation": DEFAULT_AGGREGATIONS['ppfd'],
+                    "default_dli_aggregation": DEFAULT_AGGREGATIONS['dli'],
+                    "default_total_integral_aggregation": DEFAULT_AGGREGATIONS['total_integral'],
+                    "default_moisture_consumption_aggregation": AGGREGATION_MEAN,
+                    "default_fertilizer_consumption_aggregation": AGGREGATION_MEAN,
+                },
+                # Flag um anzuzeigen, dass dies ein Konfigurationsknoten ist
+                "is_config": True
+            }
+            return self.async_create_entry(
+                title="Plant Monitor Konfiguration",
+                data=config_data
+            )
 
-        # Nur Device Type Auswahl im ersten Schritt
-        data_schema = {
-            vol.Required(ATTR_DEVICE_TYPE, default=DEVICE_TYPE_PLANT): vol.In(DEVICE_TYPES),
-        }
+        # Normale Geräteauswahl fortsetzen
+        if not user_input:
+            return self.async_show_form(
+                step_id="user",
+                data_schema=vol.Schema(
+                    {
+                        vol.Required(ATTR_DEVICE_TYPE): vol.In(DEVICE_TYPES),
+                    }
+                ),
+            )
 
-        return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema(data_schema),
-        )
+        if user_input[ATTR_DEVICE_TYPE] == DEVICE_TYPE_CYCLE:
+            return await self.async_step_cycle()
+        else:
+            return await self.async_step_plant()
 
     async def async_step_cycle(self, user_input=None):
         """Handle cycle configuration."""
         errors = {}
+
+        # Hole die Default-Werte aus dem Konfigurationsknoten
+        config_entry = None
+        for entry in self._async_current_entries():
+            if entry.data.get("is_config", False):
+                config_entry = entry
+                break
+
+        if config_entry:
+            config_data = config_entry.data[FLOW_PLANT_INFO]
+        else:
+            config_data = {}
+
         if user_input is not None:
             self.plant_info = {
                 ATTR_NAME: user_input[ATTR_NAME],
@@ -174,19 +260,22 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ATTR_STRAIN: "",
                 ATTR_BREEDER: "",
                 "growth_phase": DEFAULT_GROWTH_PHASE,
-                "plant_emoji": user_input.get("plant_emoji", "🔄"),
-                "growth_phase_aggregation": user_input.get("growth_phase_aggregation", "min"),
-                "flowering_duration_aggregation": user_input.get("flowering_duration_aggregation", "mean"),
-                # Speichere die Aggregationsmethoden
+                "plant_emoji": user_input.get("plant_emoji", config_data.get("default_cycle_icon", "🔄")),
+                "growth_phase_aggregation": user_input.get("growth_phase_aggregation", config_data.get("default_growth_phase_aggregation", "min")),
+                "flowering_duration_aggregation": user_input.get("flowering_duration_aggregation", config_data.get("default_flowering_duration_aggregation", "mean")),
+                "pot_size_aggregation": user_input.get("pot_size_aggregation", config_data.get("default_pot_size_aggregation", "mean")),
+                "water_capacity_aggregation": user_input.get("water_capacity_aggregation", config_data.get("default_water_capacity_aggregation", "mean")),
                 "aggregations": {
-                    'temperature': user_input.get('temperature_aggregation', DEFAULT_AGGREGATIONS['temperature']),
-                    'moisture': user_input.get('moisture_aggregation', DEFAULT_AGGREGATIONS['moisture']),
-                    'conductivity': user_input.get('conductivity_aggregation', DEFAULT_AGGREGATIONS['conductivity']),
-                    'illuminance': user_input.get('illuminance_aggregation', DEFAULT_AGGREGATIONS['illuminance']),
-                    'humidity': user_input.get('humidity_aggregation', DEFAULT_AGGREGATIONS['humidity']),
-                    'ppfd': user_input.get('ppfd_aggregation', DEFAULT_AGGREGATIONS['ppfd']),
-                    'dli': user_input.get('dli_aggregation', DEFAULT_AGGREGATIONS['dli']),
-                    'total_integral': user_input.get('total_integral_aggregation', DEFAULT_AGGREGATIONS['total_integral']),
+                    'temperature': user_input.get('temperature_aggregation', config_data.get("default_temperature_aggregation", DEFAULT_AGGREGATIONS['temperature'])),
+                    'moisture': user_input.get('moisture_aggregation', config_data.get("default_moisture_aggregation", DEFAULT_AGGREGATIONS['moisture'])),
+                    'conductivity': user_input.get('conductivity_aggregation', config_data.get("default_conductivity_aggregation", DEFAULT_AGGREGATIONS['conductivity'])),
+                    'illuminance': user_input.get('illuminance_aggregation', config_data.get("default_illuminance_aggregation", DEFAULT_AGGREGATIONS['illuminance'])),
+                    'humidity': user_input.get('humidity_aggregation', config_data.get("default_humidity_aggregation", DEFAULT_AGGREGATIONS['humidity'])),
+                    'ppfd': user_input.get('ppfd_aggregation', config_data.get("default_ppfd_aggregation", DEFAULT_AGGREGATIONS['ppfd'])),
+                    'dli': user_input.get('dli_aggregation', config_data.get("default_dli_aggregation", DEFAULT_AGGREGATIONS['dli'])),
+                    'total_integral': user_input.get('total_integral_aggregation', config_data.get("default_total_integral_aggregation", DEFAULT_AGGREGATIONS['total_integral'])),
+                    'moisture_consumption': user_input.get('moisture_consumption_aggregation', config_data.get("default_moisture_consumption_aggregation", AGGREGATION_MEAN)),
+                    'fertilizer_consumption': user_input.get('fertilizer_consumption_aggregation', config_data.get("default_fertilizer_consumption_aggregation", AGGREGATION_MEAN)),
                 }
             }
             
@@ -227,25 +316,37 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         data_schema = {
             vol.Required(ATTR_NAME): cv.string,
-            vol.Optional("plant_emoji", default="🔄"): cv.string,
-            vol.Optional("growth_phase_aggregation", default="min"): vol.In(["min", "max"]),
-            vol.Optional("flowering_duration_aggregation", default="mean"): vol.In(AGGREGATION_METHODS),
+            vol.Optional("plant_emoji", default=config_data.get("default_cycle_icon", "🔄")): cv.string,
+            vol.Optional("growth_phase_aggregation", 
+                        default=config_data.get("default_growth_phase_aggregation", "min")): vol.In(["min", "max"]),
+            vol.Optional("flowering_duration_aggregation", 
+                        default=config_data.get("default_flowering_duration_aggregation", "mean")): vol.In(AGGREGATION_METHODS),
+            vol.Optional("pot_size_aggregation", 
+                        default=config_data.get("default_pot_size_aggregation", "mean")): vol.In(AGGREGATION_METHODS),
+            vol.Optional("water_capacity_aggregation", 
+                        default=config_data.get("default_water_capacity_aggregation", "mean")): vol.In(AGGREGATION_METHODS),
             vol.Optional("temperature_aggregation", 
-                        default=DEFAULT_AGGREGATIONS['temperature']): vol.In(AGGREGATION_METHODS),
+                        default=config_data.get("default_temperature_aggregation", DEFAULT_AGGREGATIONS['temperature'])): vol.In(AGGREGATION_METHODS),
             vol.Optional("moisture_aggregation", 
-                        default=DEFAULT_AGGREGATIONS['moisture']): vol.In(AGGREGATION_METHODS),
+                        default=config_data.get("default_moisture_aggregation", DEFAULT_AGGREGATIONS['moisture'])): vol.In(AGGREGATION_METHODS),
             vol.Optional("conductivity_aggregation", 
-                        default=DEFAULT_AGGREGATIONS['conductivity']): vol.In(AGGREGATION_METHODS),
+                        default=config_data.get("default_conductivity_aggregation", DEFAULT_AGGREGATIONS['conductivity'])): vol.In(AGGREGATION_METHODS),
             vol.Optional("illuminance_aggregation", 
-                        default=DEFAULT_AGGREGATIONS['illuminance']): vol.In(AGGREGATION_METHODS),
+                        default=config_data.get("default_illuminance_aggregation", DEFAULT_AGGREGATIONS['illuminance'])): vol.In(AGGREGATION_METHODS),
             vol.Optional("humidity_aggregation", 
-                        default=DEFAULT_AGGREGATIONS['humidity']): vol.In(AGGREGATION_METHODS),
+                        default=config_data.get("default_humidity_aggregation", DEFAULT_AGGREGATIONS['humidity'])): vol.In(AGGREGATION_METHODS),
+            # Erweiterte Aggregationsmethoden für DLI/PPFD
             vol.Optional("ppfd_aggregation", 
-                        default=DEFAULT_AGGREGATIONS['ppfd']): vol.In(AGGREGATION_METHODS),
+                        default=config_data.get("default_ppfd_aggregation", DEFAULT_AGGREGATIONS['ppfd'])): vol.In(AGGREGATION_METHODS_EXTENDED),
             vol.Optional("dli_aggregation", 
-                        default=DEFAULT_AGGREGATIONS['dli']): vol.In(AGGREGATION_METHODS),
+                        default=config_data.get("default_dli_aggregation", DEFAULT_AGGREGATIONS['dli'])): vol.In(AGGREGATION_METHODS_EXTENDED),
             vol.Optional("total_integral_aggregation", 
-                        default=DEFAULT_AGGREGATIONS['total_integral']): vol.In(AGGREGATION_METHODS),
+                        default=config_data.get("default_total_integral_aggregation", DEFAULT_AGGREGATIONS['total_integral'])): vol.In(AGGREGATION_METHODS_EXTENDED),
+            # Neue Aggregationen für die Diagnosesensoren
+            vol.Optional("moisture_consumption_aggregation",
+                        default=config_data.get("default_moisture_consumption_aggregation", AGGREGATION_MEAN)): vol.In(AGGREGATION_METHODS_EXTENDED),
+            vol.Optional("fertilizer_consumption_aggregation",
+                        default=config_data.get("default_fertilizer_consumption_aggregation", AGGREGATION_MEAN)): vol.In(AGGREGATION_METHODS_EXTENDED)
         }
 
         return self.async_show_form(
@@ -257,14 +358,34 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_plant(self, user_input=None):
         """Handle plant configuration."""
         errors = {}
+
+        # Hole die Default-Werte aus dem Konfigurationsknoten
+        config_entry = None
+        for entry in self._async_current_entries():
+            if entry.data.get("is_config", False):
+                config_entry = entry
+                break
+
+        if config_entry:
+            config_data = config_entry.data[FLOW_PLANT_INFO]
+        else:
+            config_data = {}
+
         if user_input is not None:
-            self.plant_info = dict(user_input)
-            self.plant_info[ATTR_IS_NEW_PLANT] = True
-            self.plant_info[ATTR_DEVICE_TYPE] = DEVICE_TYPE_PLANT
-            self.plant_info[ATTR_STRAIN] = user_input[ATTR_STRAIN]
-            self.plant_info[ATTR_BREEDER] = user_input.get(ATTR_BREEDER, "")
-            self.plant_info["growth_phase"] = user_input.get("growth_phase", DEFAULT_GROWTH_PHASE)
-            self.plant_info["plant_emoji"] = user_input.get("plant_emoji", "🥦")
+            self.plant_info = {
+                ATTR_NAME: user_input[ATTR_NAME],
+                ATTR_DEVICE_TYPE: DEVICE_TYPE_PLANT,
+                ATTR_IS_NEW_PLANT: True,
+                ATTR_STRAIN: user_input[ATTR_STRAIN],
+                ATTR_BREEDER: user_input.get(ATTR_BREEDER, ""),
+                "growth_phase": user_input.get("growth_phase", DEFAULT_GROWTH_PHASE),
+                "plant_emoji": user_input.get("plant_emoji", "🌱"),
+                ATTR_POT_SIZE: user_input.get(ATTR_POT_SIZE, DEFAULT_POT_SIZE),
+                ATTR_WATER_CAPACITY: user_input.get(ATTR_WATER_CAPACITY, DEFAULT_WATER_CAPACITY),
+                ATTR_NORMALIZE_MOISTURE: user_input.get(ATTR_NORMALIZE_MOISTURE, False),
+                ATTR_NORMALIZE_WINDOW: user_input.get(ATTR_NORMALIZE_WINDOW, DEFAULT_NORMALIZE_WINDOW),
+                ATTR_NORMALIZE_PERCENTILE: user_input.get(ATTR_NORMALIZE_PERCENTILE, DEFAULT_NORMALIZE_PERCENTILE),
+            }
 
             plant_helper = PlantHelper(hass=self.hass)
             plant_config = await plant_helper.get_plantbook_data({
@@ -285,13 +406,18 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_limits()
 
         data_schema = {
+            # Basis-Informationen
             vol.Required(ATTR_NAME): cv.string,
-            vol.Optional("plant_emoji", default="🥦"): cv.string,
+            vol.Optional("plant_emoji", default=config_data.get("default_icon")): cv.string,
             vol.Required(ATTR_STRAIN): cv.string,
             vol.Required(ATTR_BREEDER): cv.string,
-            vol.Optional("growth_phase", default=DEFAULT_GROWTH_PHASE): vol.In(
+            vol.Optional("growth_phase", default=config_data.get("default_growth_phase")): vol.In(
                 GROWTH_PHASES
             ),
+            vol.Optional(ATTR_POT_SIZE, default=config_data.get("default_pot_size")): vol.Coerce(float),
+            vol.Optional(ATTR_WATER_CAPACITY, default=config_data.get("default_water_capacity")): vol.Coerce(int),
+           
+            # Sensor Selektoren
             vol.Optional(FLOW_SENSOR_TEMPERATURE): selector(
                 {
                     ATTR_ENTITY: {
@@ -309,7 +435,12 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             ),
             vol.Optional(FLOW_SENSOR_CONDUCTIVITY): selector(
-                {ATTR_ENTITY: {ATTR_DOMAIN: DOMAIN_SENSOR}}
+                {
+                    ATTR_ENTITY: {
+                        ATTR_DEVICE_CLASS: SensorDeviceClass.CONDUCTIVITY,
+                        ATTR_DOMAIN: DOMAIN_SENSOR
+                    }
+                }
             ),
             vol.Optional(FLOW_SENSOR_ILLUMINANCE): selector(
                 {
@@ -327,6 +458,10 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     }
                 }
             ),
+            
+            vol.Optional(ATTR_NORMALIZE_MOISTURE, default=config_data.get("default_normalize_moisture")): cv.boolean,
+            vol.Optional(ATTR_NORMALIZE_WINDOW, default=config_data.get("default_normalize_window")): cv.positive_int,
+            vol.Optional(ATTR_NORMALIZE_PERCENTILE, default=config_data.get("default_normalize_percentile")): cv.positive_int,
         }
 
         return self.async_show_form(
@@ -348,6 +483,32 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ATTR_SENSORS: {},
             }
         )
+
+        # Hole die Default-Werte aus dem Konfigurationsknoten
+        config_entry = None
+        for entry in self._async_current_entries():
+            if entry.data.get("is_config", False):
+                config_entry = entry
+                break
+
+        if config_entry:
+            config_data = config_entry.data[FLOW_PLANT_INFO]
+        else:
+            # Fallback auf Standard-Werte wenn kein Konfigurationsknoten existiert
+            config_data = {
+                CONF_DEFAULT_MAX_MOISTURE: 60,
+                CONF_DEFAULT_MIN_MOISTURE: 20,
+                CONF_DEFAULT_MAX_ILLUMINANCE: 30000,
+                CONF_DEFAULT_MIN_ILLUMINANCE: 1500,
+                CONF_DEFAULT_MAX_DLI: 30,
+                CONF_DEFAULT_MIN_DLI: 8,
+                CONF_DEFAULT_MAX_TEMPERATURE: 30,
+                CONF_DEFAULT_MIN_TEMPERATURE: 10,
+                CONF_DEFAULT_MAX_CONDUCTIVITY: 2000,
+                CONF_DEFAULT_MIN_CONDUCTIVITY: 500,
+                CONF_DEFAULT_MAX_HUMIDITY: 60,
+                CONF_DEFAULT_MIN_HUMIDITY: 20,
+            }
 
         if user_input is not None:
             _LOGGER.debug("User Input %s", user_input)
@@ -543,18 +704,18 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 preview_picture = ""
 
         # Füge die Grenzwerte hinzu
-        data_schema[vol.Optional(CONF_MAX_MOISTURE, default=int(plant_config[FLOW_PLANT_INFO].get(CONF_MAX_MOISTURE, 60)))] = int
-        data_schema[vol.Optional(CONF_MIN_MOISTURE, default=int(plant_config[FLOW_PLANT_INFO].get(CONF_MIN_MOISTURE, 20)))] = int
-        data_schema[vol.Optional(CONF_MAX_ILLUMINANCE, default=int(plant_config[FLOW_PLANT_INFO].get(CONF_MAX_ILLUMINANCE, 30000)))] = int
-        data_schema[vol.Optional(CONF_MIN_ILLUMINANCE, default=int(plant_config[FLOW_PLANT_INFO].get(CONF_MIN_ILLUMINANCE, 1500)))] = int
-        data_schema[vol.Optional(CONF_MAX_DLI, default=float(plant_config[FLOW_PLANT_INFO].get(CONF_MAX_DLI, 30)))] = int
-        data_schema[vol.Optional(CONF_MIN_DLI, default=float(plant_config[FLOW_PLANT_INFO].get(CONF_MIN_DLI, 8)))] = int
-        data_schema[vol.Optional(CONF_MAX_TEMPERATURE, default=int(plant_config[FLOW_PLANT_INFO].get(CONF_MAX_TEMPERATURE, 30)))] = int
-        data_schema[vol.Optional(CONF_MIN_TEMPERATURE, default=int(plant_config[FLOW_PLANT_INFO].get(CONF_MIN_TEMPERATURE, 10)))] = int
-        data_schema[vol.Optional(CONF_MAX_CONDUCTIVITY, default=int(plant_config[FLOW_PLANT_INFO].get(CONF_MAX_CONDUCTIVITY, 2000)))] = int
-        data_schema[vol.Optional(CONF_MIN_CONDUCTIVITY, default=int(plant_config[FLOW_PLANT_INFO].get(CONF_MIN_CONDUCTIVITY, 500)))] = int
-        data_schema[vol.Optional(CONF_MAX_HUMIDITY, default=int(plant_config[FLOW_PLANT_INFO].get(CONF_MAX_HUMIDITY, 60)))] = int
-        data_schema[vol.Optional(CONF_MIN_HUMIDITY, default=int(plant_config[FLOW_PLANT_INFO].get(CONF_MIN_HUMIDITY, 20)))] = int
+        data_schema[vol.Optional(CONF_MAX_MOISTURE, default=int(config_data.get(CONF_DEFAULT_MAX_MOISTURE, 60)))] = int
+        data_schema[vol.Optional(CONF_MIN_MOISTURE, default=int(config_data.get(CONF_DEFAULT_MIN_MOISTURE, 20)))] = int
+        data_schema[vol.Optional(CONF_MAX_ILLUMINANCE, default=int(config_data.get(CONF_DEFAULT_MAX_ILLUMINANCE, 30000)))] = int
+        data_schema[vol.Optional(CONF_MIN_ILLUMINANCE, default=int(config_data.get(CONF_DEFAULT_MIN_ILLUMINANCE, 1500)))] = int
+        data_schema[vol.Optional(CONF_MAX_DLI, default=float(config_data.get(CONF_DEFAULT_MAX_DLI, 30)))] = int
+        data_schema[vol.Optional(CONF_MIN_DLI, default=float(config_data.get(CONF_DEFAULT_MIN_DLI, 8)))] = int
+        data_schema[vol.Optional(CONF_MAX_TEMPERATURE, default=int(config_data.get(CONF_DEFAULT_MAX_TEMPERATURE, 30)))] = int
+        data_schema[vol.Optional(CONF_MIN_TEMPERATURE, default=int(config_data.get(CONF_DEFAULT_MIN_TEMPERATURE, 10)))] = int
+        data_schema[vol.Optional(CONF_MAX_CONDUCTIVITY, default=int(config_data.get(CONF_DEFAULT_MAX_CONDUCTIVITY, 2000)))] = int
+        data_schema[vol.Optional(CONF_MIN_CONDUCTIVITY, default=int(config_data.get(CONF_DEFAULT_MIN_CONDUCTIVITY, 500)))] = int
+        data_schema[vol.Optional(CONF_MAX_HUMIDITY, default=int(config_data.get(CONF_DEFAULT_MAX_HUMIDITY, 60)))] = int
+        data_schema[vol.Optional(CONF_MIN_HUMIDITY, default=int(config_data.get(CONF_DEFAULT_MIN_HUMIDITY, 20)))] = int
         
         # Für das Eingabefeld den originalen Pfad verwenden
         data_schema[vol.Optional(ATTR_ENTITY_PICTURE, description={"suggested_value": entity_picture})] = str
@@ -628,85 +789,428 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         entry: config_entries.ConfigEntry,
     ) -> None:
         """Initialize options flow."""
-
-        entry.async_on_unload(entry.add_update_listener(self.update_plant_options))
-
-        self.plant = None
         self.entry = entry
+        self.is_config = entry.data.get("is_config", False)
+        if not self.is_config:
+            entry.async_on_unload(entry.add_update_listener(self.update_plant_options))
+            self.plant = None
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> data_entry_flow.FlowResult:
         """Manage the options."""
         if user_input is not None:
-            if ATTR_STRAIN not in user_input or not re.match(
-                r"\w+", user_input[ATTR_STRAIN]
-            ):
-                user_input[ATTR_STRAIN] = ""
-            if ATTR_ENTITY_PICTURE not in user_input or not re.match(
-                r"(\/)?\w+", user_input[ATTR_ENTITY_PICTURE]
-            ):
-                user_input[ATTR_ENTITY_PICTURE] = ""
-            if OPB_DISPLAY_PID not in user_input or not re.match(
-                r"\w+", user_input[OPB_DISPLAY_PID]
-            ):
-                user_input[OPB_DISPLAY_PID] = ""
+            if self.is_config:
+                # Für Konfigurationsknoten nur die Default-Werte aktualisieren
+                data = dict(self.entry.data)
+                defaults_changed = False
+                
+                # Neue Default-Einstellungen
+                default_fields = {
+                    "default_icon": "default_icon",
+                    "default_growth_phase": "default_growth_phase",
+                    "default_pot_size": "default_pot_size",
+                    "default_water_capacity": "default_water_capacity",
+                    "default_normalize_moisture": "default_normalize_moisture",
+                    "default_normalize_window": "default_normalize_window",
+                    "default_normalize_percentile": "default_normalize_percentile",
+                    CONF_DEFAULT_MAX_MOISTURE: CONF_DEFAULT_MAX_MOISTURE,
+                    CONF_DEFAULT_MIN_MOISTURE: CONF_DEFAULT_MIN_MOISTURE,
+                    CONF_DEFAULT_MAX_ILLUMINANCE: CONF_DEFAULT_MAX_ILLUMINANCE,
+                    CONF_DEFAULT_MIN_ILLUMINANCE: CONF_DEFAULT_MIN_ILLUMINANCE,
+                    CONF_DEFAULT_MAX_DLI: CONF_DEFAULT_MAX_DLI,
+                    CONF_DEFAULT_MIN_DLI: CONF_DEFAULT_MIN_DLI,
+                    CONF_DEFAULT_MAX_TEMPERATURE: CONF_DEFAULT_MAX_TEMPERATURE,
+                    CONF_DEFAULT_MIN_TEMPERATURE: CONF_DEFAULT_MIN_TEMPERATURE,
+                    CONF_DEFAULT_MAX_CONDUCTIVITY: CONF_DEFAULT_MAX_CONDUCTIVITY,
+                    CONF_DEFAULT_MIN_CONDUCTIVITY: CONF_DEFAULT_MIN_CONDUCTIVITY,
+                    CONF_DEFAULT_MAX_HUMIDITY: CONF_DEFAULT_MAX_HUMIDITY,
+                    CONF_DEFAULT_MIN_HUMIDITY: CONF_DEFAULT_MIN_HUMIDITY,
+                    # Cycle-spezifische Defaults
+                    "default_cycle_icon": "default_cycle_icon",
+                    "default_growth_phase_aggregation": "default_growth_phase_aggregation",
+                    "default_flowering_duration_aggregation": "default_flowering_duration_aggregation",
+                    "default_pot_size_aggregation": "default_pot_size_aggregation",
+                    "default_water_capacity_aggregation": "default_water_capacity_aggregation",
+                    "default_temperature_aggregation": "default_temperature_aggregation",
+                    "default_moisture_aggregation": "default_moisture_aggregation",
+                    "default_conductivity_aggregation": "default_conductivity_aggregation",
+                    "default_illuminance_aggregation": "default_illuminance_aggregation",
+                    "default_humidity_aggregation": "default_humidity_aggregation",
+                    "default_ppfd_aggregation": "default_ppfd_aggregation",
+                    "default_dli_aggregation": "default_dli_aggregation",
+                    "default_total_integral_aggregation": "default_total_integral_aggregation",
+                    "default_moisture_consumption_aggregation": "default_moisture_consumption_aggregation",
+                    "default_fertilizer_consumption_aggregation": "default_fertilizer_consumption_aggregation",
+                }
+                
+                for default_key, limit_key in default_fields.items():
+                    if default_key in user_input:
+                        old_value = data[FLOW_PLANT_INFO].get(default_key)
+                        new_value = user_input[default_key]
+                        if new_value != old_value:
+                            defaults_changed = True
+                            data[FLOW_PLANT_INFO][default_key] = new_value
 
-            return self.async_create_entry(title="", data=user_input)
+                if defaults_changed:
+                    self.hass.config_entries.async_update_entry(self.entry, data=data)
 
-        self.plant = self.hass.data[DOMAIN][self.entry.entry_id]["plant"]
-        plant_helper = PlantHelper(hass=self.hass)
+                return self.async_create_entry(title="", data=user_input)
+            else:
+                # Normale Plant/Cycle Optionen
+                self.plant = self.hass.data[DOMAIN][self.entry.entry_id]["plant"]
+                
+                # Prüfe ob sich Sensorzuweisungen geändert haben
+                sensor_changed = False
+                data = dict(self.entry.data)
+                
+                # Prüfe Änderungen für jeden Sensor-Typ
+                sensor_mappings = {
+                    FLOW_SENSOR_TEMPERATURE: self.plant.sensor_temperature,
+                    FLOW_SENSOR_MOISTURE: self.plant.sensor_moisture,
+                    FLOW_SENSOR_CONDUCTIVITY: self.plant.sensor_conductivity,
+                    FLOW_SENSOR_ILLUMINANCE: self.plant.sensor_illuminance,
+                    FLOW_SENSOR_HUMIDITY: self.plant.sensor_humidity,
+                }
+                
+                for sensor_key, current_sensor in sensor_mappings.items():
+                    new_sensor = user_input.get(sensor_key)
+                    if new_sensor is not None:
+                        old_sensor = data[FLOW_PLANT_INFO].get(sensor_key, "")
+                        if new_sensor != old_sensor:
+                            sensor_changed = True
+                            data[FLOW_PLANT_INFO][sensor_key] = new_sensor
+                            if current_sensor:
+                                current_sensor.replace_external_sensor(new_sensor)
+
+                if sensor_changed:
+                    self.hass.config_entries.async_update_entry(self.entry, data=data)
+
+                # Prüfe ob sich Normalisierungseinstellungen geändert haben
+                if self.plant.device_type == DEVICE_TYPE_PLANT:
+                    normalize_changed = False
+                    data = dict(self.entry.data)
+                    
+                    new_normalize = user_input.get(ATTR_NORMALIZE_MOISTURE)
+                    new_window = user_input.get(ATTR_NORMALIZE_WINDOW)
+                    new_percentile = user_input.get(ATTR_NORMALIZE_PERCENTILE)
+                    
+                    if new_normalize is not None:
+                        old_normalize = data[FLOW_PLANT_INFO].get(ATTR_NORMALIZE_MOISTURE, False)
+                        if new_normalize != old_normalize:
+                            normalize_changed = True
+                        data[FLOW_PLANT_INFO][ATTR_NORMALIZE_MOISTURE] = new_normalize
+                        
+                    if new_window is not None:
+                        old_window = data[FLOW_PLANT_INFO].get(ATTR_NORMALIZE_WINDOW, DEFAULT_NORMALIZE_WINDOW)
+                        if new_window != old_window:
+                            normalize_changed = True
+                        data[FLOW_PLANT_INFO][ATTR_NORMALIZE_WINDOW] = new_window
+                        
+                    if new_percentile is not None:
+                        old_percentile = data[FLOW_PLANT_INFO].get(ATTR_NORMALIZE_PERCENTILE, DEFAULT_NORMALIZE_PERCENTILE)
+                        if new_percentile != old_percentile:
+                            normalize_changed = True
+                        data[FLOW_PLANT_INFO][ATTR_NORMALIZE_PERCENTILE] = new_percentile
+
+                    if normalize_changed:
+                        self.hass.config_entries.async_update_entry(self.entry, data=data)
+                        
+                        # Sensoren direkt aktualisieren
+                        if self.plant.sensor_moisture:
+                            self.plant.sensor_moisture._normalize = new_normalize
+                            self.plant.sensor_moisture._normalize_window = new_window
+                            self.plant.sensor_moisture._normalize_percentile = new_percentile
+                            self.plant.sensor_moisture._max_moisture = None
+                            self.plant.sensor_moisture._last_normalize_update = None
+                            await self.plant.sensor_moisture.async_update()
+                        
+                        if self.plant.sensor_conductivity:
+                            self.plant.sensor_conductivity._normalize = new_normalize
+                            await self.plant.sensor_conductivity.async_update()
+
+                # Bestehende Validierung für andere Felder
+                if ATTR_STRAIN in user_input and not re.match(r"\w+", user_input[ATTR_STRAIN]):
+                    user_input[ATTR_STRAIN] = ""
+                if ATTR_ENTITY_PICTURE in user_input and not re.match(r"(\/)?\w+", user_input[ATTR_ENTITY_PICTURE]):
+                    user_input[ATTR_ENTITY_PICTURE] = ""
+                if OPB_DISPLAY_PID in user_input and not re.match(r"\w+", user_input[OPB_DISPLAY_PID]):
+                    user_input[OPB_DISPLAY_PID] = ""
+
+                return self.async_create_entry(title="", data=user_input)
+
+        # Erstelle das Formular basierend auf dem Typ
         data_schema = {}
-        data_schema[
-            vol.Optional(
-                ATTR_STRAIN, description={"suggested_value": self.plant.pid}
-            )
-        ] = cv.string
-        if plant_helper.has_openplantbook and self.plant.pid:
-            data_schema[vol.Optional(FLOW_FORCE_SPECIES_UPDATE, default=False)] = (
+        
+        if self.is_config:
+            # Formular für Konfigurationsknoten
+            data_schema.update({
+                vol.Optional(
+                    "default_icon",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_icon","")
+                ): str,
+                vol.Optional(
+                    "default_growth_phase",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_growth_phase", DEFAULT_GROWTH_PHASE)
+                ): vol.In(GROWTH_PHASES),
+                vol.Optional(
+                    "default_pot_size",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_pot_size", DEFAULT_POT_SIZE)
+                ): vol.Coerce(float),
+                vol.Optional(
+                    "default_water_capacity",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_water_capacity", DEFAULT_WATER_CAPACITY)
+                ): vol.Coerce(int),
+                vol.Optional(
+                    CONF_DEFAULT_MAX_MOISTURE,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MAX_MOISTURE, 60)
+                ): int,
+                vol.Optional(
+                    CONF_DEFAULT_MIN_MOISTURE,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MIN_MOISTURE, 20)
+                ): int,
+                vol.Optional(
+                    CONF_DEFAULT_MAX_ILLUMINANCE,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MAX_ILLUMINANCE, 30000)
+                ): int,
+                vol.Optional(
+                    CONF_DEFAULT_MIN_ILLUMINANCE,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MIN_ILLUMINANCE, 1500)
+                ): int,
+                vol.Optional(
+                    CONF_DEFAULT_MAX_DLI,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MAX_DLI, 30)
+                ): int,
+                vol.Optional(
+                    CONF_DEFAULT_MIN_DLI,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MIN_DLI, 8)
+                ): int,
+                vol.Optional(
+                    CONF_DEFAULT_MAX_TEMPERATURE,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MAX_TEMPERATURE, 30)
+                ): int,
+                vol.Optional(
+                    CONF_DEFAULT_MIN_TEMPERATURE,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MIN_TEMPERATURE, 10)
+                ): int,
+                vol.Optional(
+                    CONF_DEFAULT_MAX_CONDUCTIVITY,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MAX_CONDUCTIVITY, 2000)
+                ): int,
+                vol.Optional(
+                    CONF_DEFAULT_MIN_CONDUCTIVITY,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MIN_CONDUCTIVITY, 500)
+                ): int,
+                vol.Optional(
+                    CONF_DEFAULT_MAX_HUMIDITY,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MAX_HUMIDITY, 60)
+                ): int,
+                vol.Optional(
+                    CONF_DEFAULT_MIN_HUMIDITY,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MIN_HUMIDITY, 20)
+                ): int,
+                vol.Optional(
+                    "default_normalize_moisture",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_normalize_moisture", False)
+                ): cv.boolean,
+                vol.Optional(
+                    "default_normalize_window",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_normalize_window", DEFAULT_NORMALIZE_WINDOW)
+                ): cv.positive_int,
+                vol.Optional(
+                    "default_normalize_percentile",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_normalize_percentile", DEFAULT_NORMALIZE_PERCENTILE)
+                ): cv.positive_int,
+                vol.Optional(
+                    "default_cycle_icon",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_cycle_icon", "🔄")
+                ): str,
+                vol.Optional(
+                    "default_growth_phase_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_growth_phase_aggregation", "min")
+                ): vol.In(["min", "max"]),
+                vol.Optional(
+                    "default_flowering_duration_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_flowering_duration_aggregation", "mean")
+                ): vol.In(AGGREGATION_METHODS),
+                vol.Optional(
+                    "default_pot_size_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_pot_size_aggregation", "mean")
+                ): vol.In(AGGREGATION_METHODS),
+                vol.Optional(
+                    "default_water_capacity_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_water_capacity_aggregation", "mean")
+                ): vol.In(AGGREGATION_METHODS),
+                vol.Optional(
+                    "default_temperature_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_temperature_aggregation", DEFAULT_AGGREGATIONS['temperature'])
+                ): vol.In(AGGREGATION_METHODS),
+                vol.Optional(
+                    "default_moisture_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_moisture_aggregation", DEFAULT_AGGREGATIONS['moisture'])
+                ): vol.In(AGGREGATION_METHODS),
+                vol.Optional(
+                    "default_conductivity_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_conductivity_aggregation", DEFAULT_AGGREGATIONS['conductivity'])
+                ): vol.In(AGGREGATION_METHODS),
+                vol.Optional(
+                    "default_illuminance_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_illuminance_aggregation", DEFAULT_AGGREGATIONS['illuminance'])
+                ): vol.In(AGGREGATION_METHODS),
+                vol.Optional(
+                    "default_humidity_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_humidity_aggregation", DEFAULT_AGGREGATIONS['humidity'])
+                ): vol.In(AGGREGATION_METHODS),
+                vol.Optional(
+                    "default_ppfd_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_ppfd_aggregation", DEFAULT_AGGREGATIONS['ppfd'])
+                ): vol.In(AGGREGATION_METHODS_EXTENDED),
+                vol.Optional(
+                    "default_dli_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_dli_aggregation", DEFAULT_AGGREGATIONS['dli'])
+                ): vol.In(AGGREGATION_METHODS_EXTENDED),
+                vol.Optional(
+                    "default_total_integral_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_total_integral_aggregation", DEFAULT_AGGREGATIONS['total_integral'])
+                ): vol.In(AGGREGATION_METHODS_EXTENDED),
+                vol.Optional(
+                    "default_moisture_consumption_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_moisture_consumption_aggregation", AGGREGATION_MEAN)
+                ): vol.In(AGGREGATION_METHODS_EXTENDED),
+                vol.Optional(
+                    "default_fertilizer_consumption_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_fertilizer_consumption_aggregation", AGGREGATION_MEAN)
+                ): vol.In(AGGREGATION_METHODS_EXTENDED),
+            })
+        else:
+            # Normale Plant/Cycle Optionen
+            self.plant = self.hass.data[DOMAIN][self.entry.entry_id]["plant"]
+            plant_helper = PlantHelper(hass=self.hass)
+            
+            # Nur für Plants, nicht für Cycles
+            if self.plant.device_type == DEVICE_TYPE_PLANT:
+                data_schema[
+                    vol.Optional(
+                        ATTR_STRAIN, description={"suggested_value": self.plant.pid}
+                    )
+                ] = cv.string
+                if plant_helper.has_openplantbook and self.plant.pid:
+                    data_schema[vol.Optional(FLOW_FORCE_SPECIES_UPDATE, default=False)] = (
+                        cv.boolean
+                    )
+
+                display_strain = self.plant.display_strain or ""
+                data_schema[
+                    vol.Optional(
+                        OPB_DISPLAY_PID, description={"suggested_value": display_strain}
+                    )
+                ] = str
+                entity_picture = self.plant.entity_picture or ""
+                data_schema[
+                    vol.Optional(
+                        ATTR_ENTITY_PICTURE, description={"suggested_value": entity_picture}
+                    )
+                ] = str
+
+                # Füge Normalisierungseinstellungen hinzu
+                current_normalize = self.entry.data[FLOW_PLANT_INFO].get(ATTR_NORMALIZE_MOISTURE, False)
+                current_window = self.entry.data[FLOW_PLANT_INFO].get(ATTR_NORMALIZE_WINDOW, DEFAULT_NORMALIZE_WINDOW)
+                current_percentile = self.entry.data[FLOW_PLANT_INFO].get(ATTR_NORMALIZE_PERCENTILE, DEFAULT_NORMALIZE_PERCENTILE)
+
+                data_schema[
+                    vol.Optional(ATTR_NORMALIZE_MOISTURE, default=current_normalize)
+                ] = cv.boolean
+                data_schema[
+                    vol.Optional(ATTR_NORMALIZE_WINDOW, default=current_window)
+                ] = cv.positive_int
+                data_schema[
+                    vol.Optional(ATTR_NORMALIZE_PERCENTILE, default=current_percentile)
+                ] = cv.positive_int
+
+                # Füge Sensor-Auswahl hinzu
+                # Hole alle verfügbaren Sensoren
+                sensor_entities = {}
+                for entity_id in self.hass.states.async_entity_ids("sensor"):
+                    state = self.hass.states.get(entity_id)
+                    if state is None:
+                        continue
+                        
+                    device_class = state.attributes.get("device_class", "")
+                    unit = state.attributes.get(ATTR_UNIT_OF_MEASUREMENT, "")
+                    
+                    # Gruppiere Sensoren nach Device Class
+                    if device_class == SensorDeviceClass.TEMPERATURE:
+                        sensor_entities.setdefault("temperature", []).append(entity_id)
+                    elif device_class == SensorDeviceClass.HUMIDITY:
+                        sensor_entities.setdefault("humidity", []).append(entity_id)
+                    elif device_class == SensorDeviceClass.ILLUMINANCE:
+                        sensor_entities.setdefault("illuminance", []).append(entity_id)
+                    elif device_class == SensorDeviceClass.MOISTURE:
+                        sensor_entities.setdefault("moisture", []).append(entity_id)
+                    elif device_class == SensorDeviceClass.CONDUCTIVITY:  # Korrekte Device Class
+                        sensor_entities.setdefault("conductivity", []).append(entity_id)
+
+                # Füge Sensor-Auswahlfelder hinzu
+                current_temp = self.entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_TEMPERATURE, "")
+                if sensor_entities.get("temperature"):
+                    data_schema[
+                        vol.Optional(FLOW_SENSOR_TEMPERATURE, 
+                                   description={"suggested_value": current_temp})
+                    ] = vol.In([""] + sorted(sensor_entities["temperature"]))
+
+                current_moisture = self.entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_MOISTURE, "")
+                if sensor_entities.get("moisture"):
+                    data_schema[
+                        vol.Optional(FLOW_SENSOR_MOISTURE,
+                                   description={"suggested_value": current_moisture})
+                    ] = vol.In([""] + sorted(sensor_entities["moisture"]))
+
+                current_conductivity = self.entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_CONDUCTIVITY, "")
+                if sensor_entities.get("conductivity"):
+                    data_schema[
+                        vol.Optional(FLOW_SENSOR_CONDUCTIVITY,
+                                   description={"suggested_value": current_conductivity})
+                    ] = vol.In([""] + sorted(sensor_entities["conductivity"]))
+
+                current_illuminance = self.entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_ILLUMINANCE, "")
+                if sensor_entities.get("illuminance"):
+                    data_schema[
+                        vol.Optional(FLOW_SENSOR_ILLUMINANCE,
+                                   description={"suggested_value": current_illuminance})
+                    ] = vol.In([""] + sorted(sensor_entities["illuminance"]))
+
+                current_humidity = self.entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_HUMIDITY, "")
+                if sensor_entities.get("humidity"):
+                    data_schema[
+                        vol.Optional(FLOW_SENSOR_HUMIDITY,
+                                   description={"suggested_value": current_humidity})
+                    ] = vol.In([""] + sorted(sensor_entities["humidity"]))
+
+            # Gemeinsame Trigger-Optionen für Plants und Cycles
+            data_schema[
+                vol.Optional(
+                    FLOW_ILLUMINANCE_TRIGGER, default=self.plant.illuminance_trigger
+                )
+            ] = cv.boolean
+            data_schema[vol.Optional(FLOW_DLI_TRIGGER, default=self.plant.dli_trigger)] = (
                 cv.boolean
             )
-
-        display_strain = self.plant.display_strain or ""
-        data_schema[
-            vol.Optional(
-                OPB_DISPLAY_PID, description={"suggested_value": display_strain}
-            )
-        ] = str
-        entity_picture = self.plant.entity_picture or ""
-        data_schema[
-            vol.Optional(
-                ATTR_ENTITY_PICTURE, description={"suggested_value": entity_picture}
-            )
-        ] = str
-
-        data_schema[
-            vol.Optional(
-                FLOW_ILLUMINANCE_TRIGGER, default=self.plant.illuminance_trigger
-            )
-        ] = cv.boolean
-        data_schema[vol.Optional(FLOW_DLI_TRIGGER, default=self.plant.dli_trigger)] = (
-            cv.boolean
-        )
-
-        data_schema[
-            vol.Optional(FLOW_HUMIDITY_TRIGGER, default=self.plant.humidity_trigger)
-        ] = cv.boolean
-        data_schema[
-            vol.Optional(
-                FLOW_TEMPERATURE_TRIGGER, default=self.plant.temperature_trigger
-            )
-        ] = cv.boolean
-        data_schema[
-            vol.Optional(FLOW_MOISTURE_TRIGGER, default=self.plant.moisture_trigger)
-        ] = cv.boolean
-        data_schema[
-            vol.Optional(
-                FLOW_CONDUCTIVITY_TRIGGER, default=self.plant.conductivity_trigger
-            )
-        ] = cv.boolean
-
-        # data_schema[vol.Optional(CONF_CHECK_DAYS, default=self.plant.check_days)] = int
+            data_schema[
+                vol.Optional(FLOW_HUMIDITY_TRIGGER, default=self.plant.humidity_trigger)
+            ] = cv.boolean
+            data_schema[
+                vol.Optional(
+                    FLOW_TEMPERATURE_TRIGGER, default=self.plant.temperature_trigger
+                )
+            ] = cv.boolean
+            data_schema[
+                vol.Optional(FLOW_MOISTURE_TRIGGER, default=self.plant.moisture_trigger)
+            ] = cv.boolean
+            data_schema[
+                vol.Optional(
+                    FLOW_CONDUCTIVITY_TRIGGER, default=self.plant.conductivity_trigger
+                )
+            ] = cv.boolean
 
         return self.async_show_form(step_id="init", data_schema=vol.Schema(data_schema))
 
@@ -714,51 +1218,44 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         self, hass: HomeAssistant, entry: config_entries.ConfigEntry
     ):
         """Handle options update."""
-
         _LOGGER.debug(
             "Update plant options begin for %s Data %s, Options: %s",
             entry.entry_id,
             entry.options,
             entry.data,
         )
-        entity_picture = entry.options.get(ATTR_ENTITY_PICTURE)
 
+        # Bild-Update
+        entity_picture = entry.options.get(ATTR_ENTITY_PICTURE)
         if entity_picture is not None:
             if entity_picture == "":
                 self.plant.add_image(entity_picture)
             else:
+                # Entferne doppelte Slashes
+                entity_picture = entity_picture.replace('//', '/')
                 try:
-                    url = cv.url(entity_picture)
-                    _LOGGER.debug("Url 1 %s", url)
-                # pylint: disable=broad-except
-                except Exception as exc1:
-                    _LOGGER.warning("Not a valid url: %s", entity_picture)
                     if entity_picture.startswith("/local/"):
-                        try:
-                            url = cv.path(entity_picture)
-                            _LOGGER.debug("Url 2 %s", url)
-                        except Exception as exc2:
-                            _LOGGER.warning("Not a valid path: %s", entity_picture)
-                            raise vol.Invalid(
-                                f"Invalid URL: {entity_picture}"
-                            ) from exc2
+                        # Lokaler Pfad
+                        url = cv.path(entity_picture)
                     else:
-                        raise vol.Invalid(f"Invalid URL: {entity_picture}") from exc1
-                _LOGGER.debug("Update image to %s", entity_picture)
-                self.plant.add_image(entity_picture)
+                        # Externe URL
+                        url = cv.url(entity_picture)
+                    _LOGGER.debug("Valid image path/url: %s", url)
+                    self.plant.add_image(entity_picture)
+                except vol.Invalid as exc:
+                    _LOGGER.warning("Invalid image path/url: %s - %s", entity_picture, exc)
 
+        # Display Strain Update
         new_display_strain = entry.options.get(OPB_DISPLAY_PID)
         if new_display_strain is not None:
             self.plant.display_strain = new_display_strain
 
+        # Strain Update
         new_strain = entry.options.get(ATTR_STRAIN)
         force_new_strain = entry.options.get(FLOW_FORCE_SPECIES_UPDATE)
-        if new_strain is not None and (
-            new_strain != self.plant.strain or force_new_strain is True
-        ):
-            _LOGGER.debug(
-                "Strain changed from '%s' to '%s'", self.plant.strain, new_strain
-            )
+        
+        if new_strain is not None and force_new_strain:
+            _LOGGER.debug("Updating strain to: %s", new_strain)
             plant_helper = PlantHelper(hass=self.hass)
             plant_config = await plant_helper.generate_configentry(
                 config={
@@ -768,47 +1265,33 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     FLOW_FORCE_SPECIES_UPDATE: force_new_strain,
                 }
             )
-            if plant_config[DATA_SOURCE] == DATA_SOURCE_PLANTBOOK:
-                self.plant.strain = new_strain
+            
+            if plant_config.get(DATA_SOURCE) == DATA_SOURCE_PLANTBOOK:
+                # Update plant info
                 self.plant.add_image(plant_config[FLOW_PLANT_INFO][ATTR_ENTITY_PICTURE])
-                self.plant.display_strain = plant_config[FLOW_PLANT_INFO][
-                    OPB_DISPLAY_PID
-                ]
-                for key, value in plant_config[FLOW_PLANT_INFO][
-                    FLOW_PLANT_LIMITS
-                ].items():
-                    set_entity = getattr(self.plant, key)
-                    _LOGGER.debug("Entity: %s To: %s", set_entity, value)
-                    set_entity_id = set_entity.entity_id
-                    _LOGGER.debug(
-                        "Setting %s to %s",
-                        set_entity_id,
-                        value,
-                    )
+                self.plant.display_strain = plant_config[FLOW_PLANT_INFO][OPB_DISPLAY_PID]
+                
+                # Update thresholds
+                if FLOW_PLANT_LIMITS in plant_config[FLOW_PLANT_INFO]:
+                    for key, value in plant_config[FLOW_PLANT_INFO][FLOW_PLANT_LIMITS].items():
+                        set_entity = getattr(self.plant, key, None)
+                        if set_entity:
+                            set_entity_id = set_entity.entity_id
+                            _LOGGER.debug("Setting %s to %s", set_entity_id, value)
+                            self.hass.states.async_set(
+                                set_entity_id,
+                                new_state=value,
+                                attributes=self.hass.states.get(set_entity_id).attributes,
+                            )
 
-                    self.hass.states.async_set(
-                        set_entity_id,
-                        new_state=value,
-                        attributes=self.hass.states.get(set_entity_id).attributes,
-                    )
-
-            else:
-                self.plant.strain = new_strain
-
-            # We need to reset the force_update option back to False, or else
-            # this will only be run once (unchanged options are will not trigger the flow)
+            # Reset force update flag
             options = dict(entry.options)
-            data = dict(entry.data)
             options[FLOW_FORCE_SPECIES_UPDATE] = False
             options[OPB_DISPLAY_PID] = self.plant.display_strain
             options[ATTR_ENTITY_PICTURE] = self.plant.entity_picture
-            _LOGGER.debug(
-                "Doing a refresh to update values: Data: %s Options: %s",
-                data,
-                options,
-            )
+            
+            hass.config_entries.async_update_entry(entry, options=options)
 
-            hass.config_entries.async_update_entry(entry, data=data, options=options)
         _LOGGER.debug("Update plant options done for %s", entry.entry_id)
         self.plant.update_registry()
 
