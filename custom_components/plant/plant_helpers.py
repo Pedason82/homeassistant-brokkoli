@@ -53,6 +53,20 @@ from .const import (
     OPB_GET,
     DEVICE_TYPE_CYCLE,
     ATTR_DEVICE_TYPE,
+    ATTR_POT_SIZE,
+    DEFAULT_POT_SIZE,
+    CONF_DEFAULT_MAX_MOISTURE,
+    CONF_DEFAULT_MIN_MOISTURE,
+    CONF_DEFAULT_MAX_ILLUMINANCE,
+    CONF_DEFAULT_MIN_ILLUMINANCE,
+    CONF_DEFAULT_MAX_DLI,
+    CONF_DEFAULT_MIN_DLI,
+    CONF_DEFAULT_MAX_TEMPERATURE,
+    CONF_DEFAULT_MIN_TEMPERATURE,
+    CONF_DEFAULT_MAX_CONDUCTIVITY,
+    CONF_DEFAULT_MIN_CONDUCTIVITY,
+    CONF_DEFAULT_MAX_HUMIDITY,
+    CONF_DEFAULT_MIN_HUMIDITY,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -143,13 +157,17 @@ class PlantHelper:
             opb_config = await self.get_plantbook_data(config)
             if opb_config:
                 ret.update(opb_config)
+                # Füge pot_size hinzu, falls in config vorhanden
+                if ATTR_POT_SIZE in config:
+                    ret[FLOW_PLANT_INFO][ATTR_POT_SIZE] = config[ATTR_POT_SIZE]
                 return ret
 
         # Basis-Attribute für beide Typen
         base_info = {
-            ATTR_NAME: config[ATTR_NAME],
+            ATTR_NAME: config[ATTR_NAME] + (" 🔄" if config.get(ATTR_DEVICE_TYPE) == DEVICE_TYPE_CYCLE else " 🌿"),
             ATTR_STRAIN: config.get(ATTR_STRAIN, ""),
             ATTR_BREEDER: config.get(ATTR_BREEDER, ""),
+            ATTR_POT_SIZE: config.get(ATTR_POT_SIZE, DEFAULT_POT_SIZE),
             DATA_SOURCE: DATA_SOURCE_MANUAL,
             ATTR_ENTITY_PICTURE: config.get(ATTR_ENTITY_PICTURE, ""),
             OPB_DISPLAY_PID: config.get(OPB_DISPLAY_PID, ""),
@@ -183,19 +201,28 @@ class PlantHelper:
         ret[FLOW_PLANT_INFO] = base_info
 
         # Füge die Standard-Grenzwerte hinzu
+        # Hole die Default-Werte aus dem Konfigurationsknoten
+        config_entry = next(
+            (entry for entry in self._hass.config_entries.async_entries(DOMAIN) 
+             if entry.data.get("is_config", False)), 
+            None
+        )
+
+        config_data = config_entry.data[FLOW_PLANT_INFO] if config_entry else {}
+        
         ret[FLOW_PLANT_INFO][ATTR_LIMITS] = {
-            CONF_MAX_MOISTURE: DEFAULT_MAX_MOISTURE,
-            CONF_MIN_MOISTURE: DEFAULT_MIN_MOISTURE,
-            CONF_MAX_ILLUMINANCE: DEFAULT_MAX_ILLUMINANCE,
-            CONF_MIN_ILLUMINANCE: DEFAULT_MIN_ILLUMINANCE,
-            CONF_MAX_TEMPERATURE: DEFAULT_MAX_TEMPERATURE,
-            CONF_MIN_TEMPERATURE: DEFAULT_MIN_TEMPERATURE,
-            CONF_MAX_CONDUCTIVITY: DEFAULT_MAX_CONDUCTIVITY,
-            CONF_MIN_CONDUCTIVITY: DEFAULT_MIN_CONDUCTIVITY,
-            CONF_MAX_HUMIDITY: DEFAULT_MAX_HUMIDITY,
-            CONF_MIN_HUMIDITY: DEFAULT_MIN_HUMIDITY,
-            CONF_MAX_DLI: DEFAULT_MAX_DLI,
-            CONF_MIN_DLI: DEFAULT_MIN_DLI,
+            CONF_MAX_MOISTURE: config_data.get(CONF_DEFAULT_MAX_MOISTURE, 60),
+            CONF_MIN_MOISTURE: config_data.get(CONF_DEFAULT_MIN_MOISTURE, 20),
+            CONF_MAX_ILLUMINANCE: config_data.get(CONF_DEFAULT_MAX_ILLUMINANCE, 30000),
+            CONF_MIN_ILLUMINANCE: config_data.get(CONF_DEFAULT_MIN_ILLUMINANCE, 1500),
+            CONF_MAX_DLI: config_data.get(CONF_DEFAULT_MAX_DLI, 30),
+            CONF_MIN_DLI: config_data.get(CONF_DEFAULT_MIN_DLI, 8),
+            CONF_MAX_TEMPERATURE: config_data.get(CONF_DEFAULT_MAX_TEMPERATURE, 30),
+            CONF_MIN_TEMPERATURE: config_data.get(CONF_DEFAULT_MIN_TEMPERATURE, 10),
+            CONF_MAX_CONDUCTIVITY: config_data.get(CONF_DEFAULT_MAX_CONDUCTIVITY, 2000),
+            CONF_MIN_CONDUCTIVITY: config_data.get(CONF_DEFAULT_MIN_CONDUCTIVITY, 500),
+            CONF_MAX_HUMIDITY: config_data.get(CONF_DEFAULT_MAX_HUMIDITY, 60),
+            CONF_MIN_HUMIDITY: config_data.get(CONF_DEFAULT_MIN_HUMIDITY, 20),
         }
 
         _LOGGER.debug("Resulting config: %s", ret)
