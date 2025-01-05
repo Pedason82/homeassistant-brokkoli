@@ -171,3 +171,230 @@ remove_cycle:
       selector:
         entity:
           domain: cycle
+
+clone_plant:
+  name: Clone Plant
+  description: Create a clone/cutting of an existing plant device.
+  fields:
+    source_entity_id:
+      name: Source Plant
+      description: The plant device to clone
+      required: true
+      selector:
+        entity:
+          domain: plant
+    name:
+      name: Name
+      description: Name for the new plant clone. If not provided, will use source plant name with incrementing number
+      required: false
+      example: "Clone of My Plant"
+      selector:
+        text:
+    temperature_sensor:
+      name: Temperature Sensor
+      description: Temperature sensor for the clone
+      required: false
+      selector:
+        entity:
+          domain: sensor
+          device_class: temperature
+    moisture_sensor:
+      name: Moisture Sensor
+      description: Moisture sensor for the clone
+      required: false
+      selector:
+        entity:
+          domain: sensor
+          device_class: moisture
+    conductivity_sensor:
+      name: Conductivity Sensor
+      description: Conductivity sensor for the clone
+      required: false
+      selector:
+        entity:
+          domain: sensor
+    illuminance_sensor:
+      name: Illuminance Sensor
+      description: Illuminance sensor for the clone
+      required: false
+      selector:
+        entity:
+          domain: sensor
+          device_class: illuminance
+    humidity_sensor:
+      name: Humidity Sensor
+      description: Humidity sensor for the clone
+      required: false
+      selector:
+        entity:
+          domain: sensor
+          device_class: humidity
+
+update_plant_attributes:
+  name: Update plant attributes
+  description: Update the attributes of a plant
+  fields:
+    entity_id:
+      name: Plant entity
+      description: The plant entity to update
+      required: true
+      selector:
+        entity:
+          domain: plant
+          integration: plant
+    strain:
+      name: Strain
+      description: Plant strain name
+      example: "White Widow"
+      selector:
+        text:
+          type: text
+    breeder:
+      name: Breeder
+      description: Plant breeder/manufacturer
+      example: "Green House Seeds"
+      selector:
+        text:
+          type: text
+    flowering_duration:
+      name: Flowering Duration
+      description: Duration of flowering phase in days
+      example: 63
+      selector:
+        number:
+          min: 1
+          max: 365
+          mode: box
+    pid:
+      name: Plant ID
+      description: Unique plant identifier
+      example: "WW_GHS"
+      selector:
+        text:
+          type: text
+    sorte:
+      name: Type/Sort
+      description: Plant type or sort
+      example: "Hybrid"
+      selector:
+        text:
+          type: text
+    feminized:
+      name: Feminized
+      description: Feminization status
+      example: "Yes"
+      selector:
+        text:
+          type: text
+    timestamp:
+      name: Timestamp
+      description: Last update timestamp
+      example: "2024-03-19"
+      selector:
+        text:
+          type: text
+    effects:
+      name: Effects
+      description: Plant effects
+      example: "Relaxing, Creative"
+      selector:
+        text:
+          type: text
+    smell:
+      name: Smell
+      description: Smell characteristics
+      example: "Citrus, pine"
+      selector:
+        text:
+          type: text
+    taste:
+      name: Taste
+      description: Taste characteristics
+      example: "Sweet, earthy"
+      selector:
+        text:
+          type: text
+    phenotype:
+      name: Phenotype
+      description: Plant phenotype
+      example: "Indica dominant"
+      selector:
+        text:
+          type: text
+    hunger:
+      name: Hunger
+      description: Plant nutrient requirements
+      example: "Medium"
+      selector:
+        text:
+          type: text
+    growth_stretch:
+      name: Growth stretch
+      description: Plant growth stretch characteristics
+      example: "2x"
+      selector:
+        text:
+          type: text
+    flower_stretch:
+      name: Flower stretch  
+      description: Plant flower stretch characteristics
+      example: "1.5x"
+      selector:
+        text:
+          type: text
+    mold_resistance:
+      name: Mold resistance
+      description: Plant mold resistance level
+      example: "High"
+      selector:
+        text:
+          type: text
+    difficulty:
+      name: Difficulty
+      description: Growing difficulty level
+      example: "Medium"
+      selector:
+        text:
+          type: text
+    yield:
+      name: Yield
+      description: Expected yield information
+      example: "500-600g/m²"
+      selector:
+        text:
+          type: text
+    notes:
+      name: Notes
+      description: Additional notes about the plant
+      example: "Responds well to LST"
+      selector:
+        text:
+          multiline: true
+    website:
+      name: Website
+      description: Related website URL
+      example: "https://example.com/strain-info"
+      selector:
+        text:
+          type: text
+    infotext1:
+      name: Info Text 1
+      description: Additional information text 1
+      example: "Growing tips"
+      selector:
+        text:
+          multiline: true
+    infotext2:
+      name: Info Text 2
+      description: Additional information text 2
+      example: "History"
+      selector:
+        text:
+          multiline: true
+    lineage:
+      name: Lineage
+      description: Plant genetic lineage/ancestry
+      example: "Skunk #1 x White Widow"
+      selector:
+        text:
+          type: text
