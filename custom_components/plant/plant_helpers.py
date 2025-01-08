@@ -158,14 +158,16 @@ class PlantHelper:
             opb_config = await self.get_plantbook_data(config)
             if opb_config:
                 ret.update(opb_config)
-                # Füge pot_size hinzu, falls in config vorhanden
+                # Füge plant_emoji und pot_size hinzu, falls in config vorhanden
                 if ATTR_POT_SIZE in config:
                     ret[FLOW_PLANT_INFO][ATTR_POT_SIZE] = config[ATTR_POT_SIZE]
+                if "plant_emoji" in config:
+                    ret[FLOW_PLANT_INFO]["plant_emoji"] = config["plant_emoji"]
                 return ret
 
         # Basis-Attribute für beide Typen
         base_info = {
-            ATTR_NAME: config[ATTR_NAME] + (" 🔄" if config.get(ATTR_DEVICE_TYPE) == DEVICE_TYPE_CYCLE else " 🌿"),
+            ATTR_NAME: config[ATTR_NAME] + (f" {config['plant_emoji']}" if "plant_emoji" in config else ""),
             ATTR_STRAIN: config.get(ATTR_STRAIN, ""),
             ATTR_BREEDER: config.get(ATTR_BREEDER, ""),
             ATTR_POT_SIZE: config.get(ATTR_POT_SIZE, DEFAULT_POT_SIZE),
@@ -173,6 +175,7 @@ class PlantHelper:
             ATTR_ENTITY_PICTURE: config.get(ATTR_ENTITY_PICTURE, ""),
             OPB_DISPLAY_PID: config.get(OPB_DISPLAY_PID, ""),
             ATTR_FLOWERING_DURATION: config.get(ATTR_FLOWERING_DURATION, "0"),
+            "plant_emoji": config.get("plant_emoji", ""),
             "pid": "",
             "sorte": "",
             "feminized": "",
