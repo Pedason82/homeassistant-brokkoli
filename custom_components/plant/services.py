@@ -201,7 +201,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             ATTR_STRAIN: call.data[ATTR_STRAIN],
             ATTR_BREEDER: call.data.get(ATTR_BREEDER, ""),
             "growth_phase": call.data.get("growth_phase", DEFAULT_GROWTH_PHASE),
-            "plant_emoji": call.data.get("plant_emoji", "🌿"),
+            "plant_emoji": call.data.get("plant_emoji", ""),
         }
 
         # Füge optionale Sensoren hinzu
@@ -233,7 +233,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         user_input = {
             ATTR_NAME: call.data.get(ATTR_NAME),
             "device_type": DEVICE_TYPE_CYCLE,
-            "plant_emoji": call.data.get("plant_emoji", "🔄"),
+            "plant_emoji": call.data.get("plant_emoji", ""),
         }
 
         _LOGGER.debug("Creating cycle with data: %s", user_input)
@@ -446,6 +446,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         
         # Setze den flowering_duration Wert
         plant_info[ATTR_FLOWERING_DURATION] = flowering_duration
+        
+        # Markiere als neue Plant
+        plant_info[ATTR_IS_NEW_PLANT] = True
         
         _LOGGER.debug("Cloning plant with flowering duration: %s", flowering_duration)
 
