@@ -653,6 +653,10 @@ class PlantDevice(Entity):
             "website": self._plant_info.get("website", ""),
         }
 
+        # Füge member_count für Cycles hinzu
+        if self.device_type == DEVICE_TYPE_CYCLE:
+            attrs = {"member_count": len(self._member_plants)} | attrs
+
         # Füge Plant-spezifische Attribute nur für Plants hinzu
         if self.device_type == DEVICE_TYPE_PLANT:
             attrs.update({
@@ -1206,89 +1210,70 @@ class PlantDevice(Entity):
                 self._median_sensors[sensor_type] = None
 
     def _update_cycle_attributes(self) -> None:
-        """Aktualisiert die Attribute des Cycles basierend auf den Member Plants."""
+        """Update cycle attributes based on member plants."""
         if self.device_type != DEVICE_TYPE_CYCLE:
             return
 
-        # Sammle Attribute von allen Member Plants
-        strains = set()
-        breeders = set()
-        sortes = set()
-        feminized = set()
-        effects = set()
-        smells = set()
-        tastes = set()
-        phenotypes = set()
-        hungers = set()
-        growth_stretches = set()
-        flower_stretches = set()
-        mold_resistances = set()
-        difficulties = set()
-        yields = set()
-        notes = set()
-        websites = set()
+        # Initialisiere leere Listen für alle Attribute
+        attributes = {
+            "member_count": [],
+            "strain": [],
+            "breeder": [],
+            "sorte": [],
+            "feminized": [],
+            "timestamp": [],
+            "pid": [],
+            "effects": [],
+            "smell": [],
+            "taste": [],
+            "phenotype": [],
+            "hunger": [],
+            "growth_stretch": [],
+            "flower_stretch": [],
+            "mold_resistance": [],
+            "difficulty": [],
+            "yield": [],
+            "notes": [],
+            "website": [],
+            "infotext1": [],
+            "infotext2": [],
+            "lineage": [],
+        }
 
+        # Sammle die Attribute aller Member Plants
+        member_count = len(self._member_plants)
         for plant_id in self._member_plants:
+            found = False
             for entry_id in self._hass.data[DOMAIN]:
                 if ATTR_PLANT in self._hass.data[DOMAIN][entry_id]:
                     plant = self._hass.data[DOMAIN][entry_id][ATTR_PLANT]
                     if plant.entity_id == plant_id:
-                        # Füge nicht-leere Werte zu den Sets hinzu
-                        if plant._plant_info.get(ATTR_STRAIN):
-                            strains.add(plant._plant_info[ATTR_STRAIN])
-                        if plant._plant_info.get(ATTR_BREEDER):
-                            breeders.add(plant._plant_info[ATTR_BREEDER])
-                        if plant._plant_info.get("sorte"):
-                            sortes.add(plant._plant_info["sorte"])
-                        if plant._plant_info.get("feminized"):
-                            feminized.add(plant._plant_info["feminized"])
-                        if plant._plant_info.get("effects"):
-                            effects.add(plant._plant_info["effects"])
-                        if plant._plant_info.get("smell"):
-                            smells.add(plant._plant_info["smell"])
-                        if plant._plant_info.get("taste"):
-                            tastes.add(plant._plant_info["taste"])
-                        if plant._plant_info.get(ATTR_PHENOTYPE):
-                            phenotypes.add(plant._plant_info[ATTR_PHENOTYPE])
-                        if plant._plant_info.get(ATTR_HUNGER):
-                            hungers.add(plant._plant_info[ATTR_HUNGER])
-                        if plant._plant_info.get(ATTR_GROWTH_STRETCH):
-                            growth_stretches.add(plant._plant_info[ATTR_GROWTH_STRETCH])
-                        if plant._plant_info.get(ATTR_FLOWER_STRETCH):
-                            flower_stretches.add(plant._plant_info[ATTR_FLOWER_STRETCH])
-                        if plant._plant_info.get(ATTR_MOLD_RESISTANCE):
-                            mold_resistances.add(plant._plant_info[ATTR_MOLD_RESISTANCE])
-                        if plant._plant_info.get(ATTR_DIFFICULTY):
-                            difficulties.add(plant._plant_info[ATTR_DIFFICULTY])
-                        if plant._plant_info.get(ATTR_YIELD):
-                            yields.add(plant._plant_info[ATTR_YIELD])
-                        if plant._plant_info.get(ATTR_NOTES):
-                            notes.add(plant._plant_info[ATTR_NOTES])
-                        if plant._plant_info.get("website"):
-                            websites.add(plant._plant_info["website"])
+                        found = True
+                        # Füge die Werte zu den entsprechenden Listen hinzu
+                        attributes["member_count"].append(str(member_count))
+                        for attr in [key for key in attributes.keys() if key != "member_count"]:
+                            value = plant._plant_info.get(attr, "")
+                            attributes[attr].append(str(value) if value else "")
                         break
+            
+            # Wenn die Plant nicht gefunden wurde, füge leere Strings hinzu
+            if not found:
+                attributes["member_count"].append(str(member_count))
+                for attr in [key for key in attributes.keys() if key != "member_count"]:
+                    attributes[attr].append("")
 
-        # Aktualisiere die Plant Info mit den aggregierten Werten
-        self._plant_info.update({
-            ATTR_STRAIN: ", ".join(sorted(strains)) if strains else "",
-            ATTR_BREEDER: ", ".join(sorted(breeders)) if breeders else "",
-            "sorte": ", ".join(sorted(sortes)) if sortes else "",
-            "feminized": ", ".join(sorted(feminized)) if feminized else "",
-            "effects": ", ".join(sorted(effects)) if effects else "",
-            "smell": ", ".join(sorted(smells)) if smells else "",
-            "taste": ", ".join(sorted(tastes)) if tastes else "",
-            ATTR_PHENOTYPE: ", ".join(sorted(phenotypes)) if phenotypes else "",
-            ATTR_HUNGER: ", ".join(sorted(hungers)) if hungers else "",
-            ATTR_GROWTH_STRETCH: ", ".join(sorted(growth_stretches)) if growth_stretches else "",
-            ATTR_FLOWER_STRETCH: ", ".join(sorted(flower_stretches)) if flower_stretches else "",
-            ATTR_MOLD_RESISTANCE: ", ".join(sorted(mold_resistances)) if mold_resistances else "",
-            ATTR_DIFFICULTY: ", ".join(sorted(difficulties)) if difficulties else "",
-            ATTR_YIELD: ", ".join(sorted(yields)) if yields else "",
-            ATTR_NOTES: ", ".join(sorted(notes)) if notes else "",
-            "website": ", ".join(sorted(websites)) if websites else "",
-        })
+        # Aktualisiere die Plant Info
+        # Setze member_count direkt als Integer
+        self._plant_info["member_count"] = member_count
+        
+        # Aktualisiere die restlichen Attribute
+        for attr, values in [(key, val) for key, val in attributes.items() if key != "member_count"]:
+            # Nur wenn mindestens ein nicht-leerer Wert existiert
+            if any(value.strip() for value in values):
+                self._plant_info[attr] = " | ".join(values)
+            else:
+                self._plant_info[attr] = ""
 
-        # Aktualisiere den State
         self.async_write_ha_state()
 
     def add_cycle_select(self, cycle_select: Entity) -> None:
@@ -1307,22 +1292,20 @@ class PlantDevice(Entity):
     def name(self) -> str:
         """Return the name with emojis for the device."""
         name = self._plant_info[ATTR_NAME]
-        # Füge Emojis für das Device hinzu
-        if self.device_type == DEVICE_TYPE_CYCLE and " 🔄" not in name:
-            name = f"{name} {self._plant_info.get('plant_emoji', '🔄')}"
-        elif self.device_type == DEVICE_TYPE_PLANT and " 🌿" not in name:
-            name = f"{name} {self._plant_info.get('plant_emoji', '🌿')}"
+        # Füge das Emoji hinzu, falls eines gesetzt ist
+        plant_emoji = self._plant_info.get('plant_emoji')
+        if plant_emoji and plant_emoji not in name:
+            name = f"{name} {plant_emoji}"
         return name
 
     @property
     def _name(self) -> str:
         """Return the clean name without emojis for entities."""
         name = self._plant_info[ATTR_NAME]
-        # Entferne Emojis für die Entities
-        if self.device_type == DEVICE_TYPE_CYCLE:
-            name = name.replace(" 🔄", "")
-        elif " 🌿" in name:
-            name = name.replace(" 🌿", "")
+        # Entferne das Emoji falls vorhanden
+        plant_emoji = self._plant_info.get('plant_emoji')
+        if plant_emoji and plant_emoji in name:
+            name = name.replace(f" {plant_emoji}", "")
         return name
 
     @property
