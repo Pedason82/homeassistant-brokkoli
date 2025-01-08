@@ -195,7 +195,7 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_DEFAULT_MAX_HUMIDITY: 60,
                     CONF_DEFAULT_MIN_HUMIDITY: 20,
                     # Default Icon für Cycle
-                    "default_cycle_icon": "🔄",
+
                     # Default Aggregationsmethoden für Cycle
                     "default_growth_phase_aggregation": "min",
                     "default_flowering_duration_aggregation": "mean",
@@ -260,7 +260,7 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ATTR_STRAIN: "",
                 ATTR_BREEDER: "",
                 "growth_phase": DEFAULT_GROWTH_PHASE,
-                "plant_emoji": user_input.get("plant_emoji", config_data.get("default_cycle_icon", "🔄")),
+                "plant_emoji": user_input.get("plant_emoji", config_data.get("default_cycle_icon", "")),
                 "growth_phase_aggregation": user_input.get("growth_phase_aggregation", config_data.get("default_growth_phase_aggregation", "min")),
                 "flowering_duration_aggregation": user_input.get("flowering_duration_aggregation", config_data.get("default_flowering_duration_aggregation", "mean")),
                 "pot_size_aggregation": user_input.get("pot_size_aggregation", config_data.get("default_pot_size_aggregation", "mean")),
@@ -287,6 +287,8 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ATTR_STRAIN: "",
                     ATTR_BREEDER: "",
                     ATTR_SENSORS: {},
+                    "plant_emoji": self.plant_info.get("plant_emoji", ""),
+                    ATTR_DEVICE_TYPE: DEVICE_TYPE_CYCLE,
                 }
             )
             
@@ -310,13 +312,13 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ATTR_STRAIN: "",
                     ATTR_BREEDER: "",
                     "growth_phase": DEFAULT_GROWTH_PHASE,
-                    "plant_emoji": user_input.get("plant_emoji", "🔄"),
+                    "plant_emoji": user_input.get("plant_emoji", ""),
                 }}
             )
 
         data_schema = {
             vol.Required(ATTR_NAME): cv.string,
-            vol.Optional("plant_emoji", default=config_data.get("default_cycle_icon", "🔄")): cv.string,
+            vol.Optional("plant_emoji", default=config_data.get("default_cycle_icon", "")): cv.string,
             vol.Optional("growth_phase_aggregation", 
                         default=config_data.get("default_growth_phase_aggregation", "min")): vol.In(["min", "max"]),
             vol.Optional("flowering_duration_aggregation", 
@@ -395,7 +397,15 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             if plant_config and plant_config.get(FLOW_PLANT_INFO, {}).get(DATA_SOURCE) == DATA_SOURCE_PLANTBOOK:
                 plant_info = plant_config[FLOW_PLANT_INFO]
+                # Füge den Namen mit Emoji hinzu
+                plant_emoji = self.plant_info.get("plant_emoji", "")
+                plant_info[ATTR_NAME] = self.plant_info[ATTR_NAME] + (f" {plant_emoji}" if plant_emoji else "")
+                plant_info["plant_emoji"] = plant_emoji
                 self.plant_info.update(plant_info)
+            else:
+                # Wenn keine OpenPlantbook-Daten verfügbar sind, füge trotzdem das Emoji zum Namen hinzu
+                plant_emoji = self.plant_info.get("plant_emoji", "")
+                self.plant_info[ATTR_NAME] = self.plant_info[ATTR_NAME] + (f" {plant_emoji}" if plant_emoji else "")
 
             if self.context.get("source_type") == "service":
                 return self.async_create_entry(
@@ -481,6 +491,7 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ATTR_STRAIN: self.plant_info[ATTR_STRAIN],
                 ATTR_BREEDER: self.plant_info.get(ATTR_BREEDER, ""),
                 ATTR_SENSORS: {},
+                "plant_emoji": self.plant_info.get("plant_emoji", ""),
             }
         )
 
@@ -947,7 +958,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             data_schema.update({
                 vol.Optional(
                     "default_icon",
-                    default=self.entry.data[FLOW_PLANT_INFO].get("default_icon","")
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_icon","🥦")
                 ): str,
                 vol.Optional(
                     "default_growth_phase",
@@ -1031,15 +1042,15 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 ): vol.In(["min", "max"]),
                 vol.Optional(
                     "default_flowering_duration_aggregation",
-                    default=self.entry.data[FLOW_PLANT_INFO].get("default_flowering_duration_aggregation", "mean")
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_flowering_duration_aggregation", "max")
                 ): vol.In(AGGREGATION_METHODS),
                 vol.Optional(
                     "default_pot_size_aggregation",
-                    default=self.entry.data[FLOW_PLANT_INFO].get("default_pot_size_aggregation", "mean")
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_pot_size_aggregation", "max")
                 ): vol.In(AGGREGATION_METHODS),
                 vol.Optional(
                     "default_water_capacity_aggregation",
-                    default=self.entry.data[FLOW_PLANT_INFO].get("default_water_capacity_aggregation", "mean")
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_water_capacity_aggregation", "max")
                 ): vol.In(AGGREGATION_METHODS),
                 vol.Optional(
                     "default_temperature_aggregation",
@@ -1075,11 +1086,11 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 ): vol.In(AGGREGATION_METHODS_EXTENDED),
                 vol.Optional(
                     "default_moisture_consumption_aggregation",
-                    default=self.entry.data[FLOW_PLANT_INFO].get("default_moisture_consumption_aggregation", AGGREGATION_MEAN)
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_moisture_consumption_aggregation", DEFAULT_AGGREGATIONS['moisture_consumption'])
                 ): vol.In(AGGREGATION_METHODS_EXTENDED),
                 vol.Optional(
                     "default_fertilizer_consumption_aggregation",
-                    default=self.entry.data[FLOW_PLANT_INFO].get("default_fertilizer_consumption_aggregation", AGGREGATION_MEAN)
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_fertilizer_consumption_aggregation", DEFAULT_AGGREGATIONS['fertilizer_consumption'])
                 ): vol.In(AGGREGATION_METHODS_EXTENDED),
             })
         else:
