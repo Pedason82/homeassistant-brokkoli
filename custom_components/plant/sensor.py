@@ -1045,6 +1045,8 @@ class CycleMedianSensor(SensorEntity):
             self._attr_name = f"{plant.name} Total {READING_PPFD} Integral"
         elif sensor_type == "humidity":
             self._attr_name = f"{plant.name} {READING_HUMIDITY}"
+        elif sensor_type == "moisture":
+            self._attr_name = f"{plant.name} {READING_MOISTURE}"
         elif sensor_type == "moisture_consumption":
             self._attr_name = f"{plant.name} {READING_MOISTURE_CONSUMPTION}"
         elif sensor_type == "fertilizer_consumption":
