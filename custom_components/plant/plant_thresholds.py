@@ -253,7 +253,7 @@ class PlantMinMoisture(PlantMinMax):
         self, hass: HomeAssistant, config: ConfigEntry, plantdevice: Entity
     ) -> None:
         """Initialize the Plant component."""
-        self._attr_name = f"{plantdevice.name} {READING_MOISTURE}"
+        self._attr_name = f"{plantdevice.name} {ATTR_MIN} {READING_MOISTURE}"
         self._attr_native_value = config.data[FLOW_PLANT_INFO][FLOW_PLANT_LIMITS].get(
             CONF_MIN_MOISTURE, DEFAULT_MIN_MOISTURE
         )
@@ -286,6 +286,9 @@ class PlantMaxTemperature(PlantMinMax):
             CONF_MAX_TEMPERATURE, DEFAULT_MAX_TEMPERATURE
         )
         self._attr_unique_id = f"{config.entry_id}-max-temperature"
+        self.entity_id = async_generate_entity_id(
+            f"{DOMAIN}.{{}}", f"{plantdevice.name}_max_temperature", hass=hass
+        )
         self._attr_native_unit_of_measurement = self._hass.config.units.temperature_unit
         self._attr_native_max_value = 100
         self._attr_native_min_value = 0
@@ -382,6 +385,9 @@ class PlantMinTemperature(PlantMinMax):
             CONF_MIN_TEMPERATURE, DEFAULT_MIN_TEMPERATURE
         )
         self._attr_unique_id = f"{config.entry_id}-min-temperature"
+        self.entity_id = async_generate_entity_id(
+            f"{DOMAIN}.{{}}", f"{plantdevice.name}_min_temperature", hass=hass
+        )
         self._attr_native_unit_of_measurement = self._hass.config.units.temperature_unit
         self._attr_native_max_value = 50
         self._attr_native_min_value = -50
@@ -548,7 +554,7 @@ class PlantMinDli(PlantMinMax):
     """Entity class for min illuminance threshold"""
 
     def __init__(self, hass: HomeAssistant, config: ConfigEntry, plantdevice: Entity) -> None:
-        self._attr_name = f"{plantdevice.name} {ATTR_MAX}  {READING_DLI}"
+        self._attr_name = f"{plantdevice.name} {ATTR_MIN} {READING_DLI}"
         self._attr_native_value = config.data[FLOW_PLANT_INFO][FLOW_PLANT_LIMITS].get(
             CONF_MIN_DLI, DEFAULT_MIN_DLI
         )
