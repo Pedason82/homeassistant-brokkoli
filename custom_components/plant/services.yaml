@@ -256,9 +256,9 @@ update_plant_attributes:
       selector:
         text:
           type: text
-    flowering_duration:
-      name: Flowering Duration
-      description: Duration of flowering phase in days
+    original_flowering_duration:
+      name: Original Flowering Duration
+      description: Original duration of flowering phase in days (from OpenPlantbook or initial setup)
       example: 63
       selector:
         number:
@@ -398,3 +398,163 @@ update_plant_attributes:
       selector:
         text:
           type: text
+    images:
+      name: Images
+      description: Liste von Bildpfaden oder URLs (durch Komma getrennt)
+      example: "/local/images/plant1.jpg, /local/images/plant2.jpg"
+      selector:
+        text:
+          multiline: true
+    samen_beginn:
+      name: Samen Beginn
+      description: Startdatum der Samen-Phase
+      example: "2024-01-01"
+      selector:
+        text:
+          type: text
+    samen_dauer:
+      name: Samen Dauer
+      description: Dauer der Samen-Phase in Tagen
+      example: "7"
+      selector:
+        number:
+          min: 0
+          max: 365
+          mode: box
+    keimen_beginn:
+      name: Keimen Beginn
+      description: Startdatum der Keimungs-Phase
+      example: "2024-01-08"
+      selector:
+        text:
+          type: text
+    keimen_dauer:
+      name: Keimen Dauer
+      description: Dauer der Keimungs-Phase in Tagen
+      example: "7"
+      selector:
+        number:
+          min: 0
+          max: 365
+          mode: box
+    wurzeln_beginn:
+      name: Wurzeln Beginn
+      description: Startdatum der Wurzel-Phase
+      example: "2024-01-15"
+      selector:
+        text:
+          type: text
+    wurzeln_dauer:
+      name: Wurzeln Dauer
+      description: Dauer der Wurzel-Phase in Tagen
+      example: "14"
+      selector:
+        number:
+          min: 0
+          max: 365
+          mode: box
+    wachstum_beginn:
+      name: Wachstum Beginn
+      description: Startdatum der Wachstums-Phase
+      example: "2024-01-29"
+      selector:
+        text:
+          type: text
+    wachstum_dauer:
+      name: Wachstum Dauer
+      description: Dauer der Wachstums-Phase in Tagen
+      example: "30"
+      selector:
+        number:
+          min: 0
+          max: 365
+          mode: box
+    blüte_beginn:
+      name: Blüte Beginn
+      description: Startdatum der Blüte-Phase
+      example: "2024-02-28"
+      selector:
+        text:
+          type: text
+    blüte_dauer:
+      name: Blüte Dauer
+      description: Dauer der Blüte-Phase in Tagen
+      example: "63"
+      selector:
+        number:
+          min: 0
+          max: 365
+          mode: box
+    geerntet:
+      name: Geerntet
+      description: Datum der Ernte
+      example: "2024-05-01"
+      selector:
+        text:
+          type: text
+    geerntet_dauer:
+      name: Geerntet Dauer
+      description: Dauer seit der Ernte in Tagen
+      example: "0"
+      selector:
+        number:
+          min: 0
+          max: 365
+          mode: box
+    entfernt:
+      name: Entfernt
+      description: Datum der Entfernung
+      example: "2024-05-01"
+      selector:
+        text:
+          type: text
+    entfernt_dauer:
+      name: Entfernt Dauer
+      description: Dauer seit der Entfernung in Tagen
+      example: "0"
+      selector:
+        number:
+          min: 0
+          max: 365
+          mode: box
+
+move_to_area:
+  name: Move to area
+  description: Moves one or more plants to an area. If no area is specified, removes plants from their current area.
+  fields:
+    device_id:
+      name: Device ID
+      description: The ID of the device(s) to add to the area.
+      required: true
+      selector:
+        device:
+          multiple: true
+    area_id:
+      name: Area
+      description: The area to move the plants to. Leave empty to remove from current area.
+      example: "living_room"
+      required: false
+      selector:
+        area:
+
+add_image:
+  name: Add Image
+  description: Fügt ein Bild zu einer Pflanze oder einem Cycle hinzu. Das Bild wird im konfigurierten Pfad gespeichert.
+  fields:
+    entity_id:
+      name: Entity
+      description: Die Pflanze oder der Cycle, zu dem das Bild hinzugefügt werden soll
+      required: true
+      selector:
+        entity:
+          domain:
+            - plant
+            - cycle
+    image_url:
+      name: Image URL
+      description: Die URL des Bildes, das heruntergeladen werden soll
+      example: "https://example.com/plant-image.jpg"
+      required: true
+      selector:
+        text:
+          type: url

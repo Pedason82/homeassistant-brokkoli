@@ -47,6 +47,10 @@ from .const import (
     CONF_MIN_ILLUMINANCE,
     CONF_MIN_MOISTURE,
     CONF_MIN_TEMPERATURE,
+    CONF_MAX_WATER_CONSUMPTION,
+    CONF_MIN_WATER_CONSUMPTION,
+    CONF_MAX_FERTILIZER_CONSUMPTION,
+    CONF_MIN_FERTILIZER_CONSUMPTION,
     DATA_UPDATED,
     DEFAULT_MAX_CONDUCTIVITY,
     DEFAULT_MAX_DLI,
@@ -54,6 +58,10 @@ from .const import (
     DEFAULT_MAX_ILLUMINANCE,
     DEFAULT_MAX_MOISTURE,
     DEFAULT_MAX_TEMPERATURE,
+    DEFAULT_MAX_WATER_CONSUMPTION,
+    DEFAULT_MIN_WATER_CONSUMPTION,
+    DEFAULT_MAX_FERTILIZER_CONSUMPTION,
+    DEFAULT_MIN_FERTILIZER_CONSUMPTION,
     DEFAULT_MIN_CONDUCTIVITY,
     DEFAULT_MIN_DLI,
     DEFAULT_MIN_HUMIDITY,
@@ -71,8 +79,11 @@ from .const import (
     READING_ILLUMINANCE,
     READING_MOISTURE,
     READING_TEMPERATURE,
+    READING_MOISTURE_CONSUMPTION,
+    READING_FERTILIZER_CONSUMPTION,
     UNIT_CONDUCTIVITY,
     UNIT_PPFD,
+    UNIT_VOLUME,
     ATTR_IS_NEW_PLANT,
     ICON_CONDUCTIVITY,
     ICON_DLI,
@@ -81,6 +92,14 @@ from .const import (
     ICON_MOISTURE,
     ICON_PPFD,
     ICON_TEMPERATURE,
+    ICON_WATER_CONSUMPTION,
+    ICON_FERTILIZER_CONSUMPTION,
+    CONF_MAX_POWER_CONSUMPTION,
+    CONF_MIN_POWER_CONSUMPTION,
+    DEFAULT_MAX_POWER_CONSUMPTION,
+    DEFAULT_MIN_POWER_CONSUMPTION,
+    READING_POWER_CONSUMPTION,
+    ICON_POWER_CONSUMPTION,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -668,3 +687,153 @@ class PlantMinHumidity(PlantMinMax):
 
     limit_key = CONF_MIN_HUMIDITY
     default_value = DEFAULT_MIN_HUMIDITY
+
+
+class PlantMaxWaterConsumption(PlantMinMax):
+    """Entity class for max water consumption threshold"""
+
+    def __init__(self, hass: HomeAssistant, config: ConfigEntry, plantdevice: Entity) -> None:
+        self._attr_name = f"{plantdevice.name} {ATTR_MAX} {READING_MOISTURE_CONSUMPTION}"
+        self._attr_native_value = config.data[FLOW_PLANT_INFO][FLOW_PLANT_LIMITS].get(
+            CONF_MAX_WATER_CONSUMPTION, DEFAULT_MAX_WATER_CONSUMPTION
+        )
+        self._attr_unique_id = f"{config.entry_id}-max-water-consumption"
+        self._attr_native_unit_of_measurement = UNIT_VOLUME
+        self._attr_native_max_value = 10
+        self._attr_native_min_value = 0
+        self._attr_native_step = 0.1
+        self._attr_icon = ICON_WATER_CONSUMPTION
+        
+        super().__init__(hass, config, plantdevice)
+
+    @property
+    def device_class(self):
+        return "water_consumption threshold"
+
+    limit_key = CONF_MAX_WATER_CONSUMPTION
+    default_value = DEFAULT_MAX_WATER_CONSUMPTION
+
+
+class PlantMinWaterConsumption(PlantMinMax):
+    """Entity class for min water consumption threshold"""
+
+    def __init__(self, hass: HomeAssistant, config: ConfigEntry, plantdevice: Entity) -> None:
+        self._attr_name = f"{plantdevice.name} {ATTR_MIN} {READING_MOISTURE_CONSUMPTION}"
+        self._attr_native_value = config.data[FLOW_PLANT_INFO][FLOW_PLANT_LIMITS].get(
+            CONF_MIN_WATER_CONSUMPTION, DEFAULT_MIN_WATER_CONSUMPTION
+        )
+        self._attr_unique_id = f"{config.entry_id}-min-water-consumption"
+        self._attr_native_unit_of_measurement = UNIT_VOLUME
+        self._attr_native_max_value = 10
+        self._attr_native_min_value = 0
+        self._attr_native_step = 0.1
+        self._attr_icon = ICON_WATER_CONSUMPTION
+        
+        super().__init__(hass, config, plantdevice)
+
+    @property
+    def device_class(self):
+        return "water_consumption threshold"
+
+    limit_key = CONF_MIN_WATER_CONSUMPTION
+    default_value = DEFAULT_MIN_WATER_CONSUMPTION
+
+
+class PlantMaxFertilizerConsumption(PlantMinMax):
+    """Entity class for max fertilizer consumption threshold"""
+
+    def __init__(self, hass: HomeAssistant, config: ConfigEntry, plantdevice: Entity) -> None:
+        self._attr_name = f"{plantdevice.name} {ATTR_MAX} {READING_FERTILIZER_CONSUMPTION}"
+        self._attr_native_value = config.data[FLOW_PLANT_INFO][FLOW_PLANT_LIMITS].get(
+            CONF_MAX_FERTILIZER_CONSUMPTION, DEFAULT_MAX_FERTILIZER_CONSUMPTION
+        )
+        self._attr_unique_id = f"{config.entry_id}-max-fertilizer-consumption"
+        self._attr_native_unit_of_measurement = UNIT_CONDUCTIVITY
+        self._attr_native_max_value = 3000
+        self._attr_native_min_value = 0
+        self._attr_native_step = 50
+        self._attr_icon = ICON_FERTILIZER_CONSUMPTION
+        
+        super().__init__(hass, config, plantdevice)
+
+    @property
+    def device_class(self):
+        return "fertilizer_consumption threshold"
+
+    limit_key = CONF_MAX_FERTILIZER_CONSUMPTION
+    default_value = DEFAULT_MAX_FERTILIZER_CONSUMPTION
+
+
+class PlantMinFertilizerConsumption(PlantMinMax):
+    """Entity class for min fertilizer consumption threshold"""
+
+    def __init__(self, hass: HomeAssistant, config: ConfigEntry, plantdevice: Entity) -> None:
+        self._attr_name = f"{plantdevice.name} {ATTR_MIN} {READING_FERTILIZER_CONSUMPTION}"
+        self._attr_native_value = config.data[FLOW_PLANT_INFO][FLOW_PLANT_LIMITS].get(
+            CONF_MIN_FERTILIZER_CONSUMPTION, DEFAULT_MIN_FERTILIZER_CONSUMPTION
+        )
+        self._attr_unique_id = f"{config.entry_id}-min-fertilizer-consumption"
+        self._attr_native_unit_of_measurement = UNIT_CONDUCTIVITY
+        self._attr_native_max_value = 3000
+        self._attr_native_min_value = 0
+        self._attr_native_step = 50
+        self._attr_icon = ICON_FERTILIZER_CONSUMPTION
+        
+        super().__init__(hass, config, plantdevice)
+
+    @property
+    def device_class(self):
+        return "fertilizer_consumption threshold"
+
+    limit_key = CONF_MIN_FERTILIZER_CONSUMPTION
+    default_value = DEFAULT_MIN_FERTILIZER_CONSUMPTION
+
+
+class PlantMaxPowerConsumption(PlantMinMax):
+    """Entity class for max power consumption threshold"""
+
+    def __init__(self, hass: HomeAssistant, config: ConfigEntry, plantdevice: Entity) -> None:
+        self._attr_name = f"{plantdevice.name} {ATTR_MAX} {READING_POWER_CONSUMPTION}"
+        self._attr_native_value = config.data[FLOW_PLANT_INFO][FLOW_PLANT_LIMITS].get(
+            CONF_MAX_POWER_CONSUMPTION, DEFAULT_MAX_POWER_CONSUMPTION
+        )
+        self._attr_unique_id = f"{config.entry_id}-max-power-consumption"
+        self._attr_native_unit_of_measurement = "kWh"
+        self._attr_native_max_value = 10
+        self._attr_native_min_value = 0
+        self._attr_native_step = 0.1
+        self._attr_icon = ICON_POWER_CONSUMPTION
+        
+        super().__init__(hass, config, plantdevice)
+
+    @property
+    def device_class(self):
+        return "power_consumption threshold"
+
+    limit_key = CONF_MAX_POWER_CONSUMPTION
+    default_value = DEFAULT_MAX_POWER_CONSUMPTION
+
+
+class PlantMinPowerConsumption(PlantMinMax):
+    """Entity class for min power consumption threshold"""
+
+    def __init__(self, hass: HomeAssistant, config: ConfigEntry, plantdevice: Entity) -> None:
+        self._attr_name = f"{plantdevice.name} {ATTR_MIN} {READING_POWER_CONSUMPTION}"
+        self._attr_native_value = config.data[FLOW_PLANT_INFO][FLOW_PLANT_LIMITS].get(
+            CONF_MIN_POWER_CONSUMPTION, DEFAULT_MIN_POWER_CONSUMPTION
+        )
+        self._attr_unique_id = f"{config.entry_id}-min-power-consumption"
+        self._attr_native_unit_of_measurement = "kWh"
+        self._attr_native_max_value = 10
+        self._attr_native_min_value = 0
+        self._attr_native_step = 0.1
+        self._attr_icon = ICON_POWER_CONSUMPTION
+        
+        super().__init__(hass, config, plantdevice)
+
+    @property
+    def device_class(self):
+        return "power_consumption threshold"
+
+    limit_key = CONF_MIN_POWER_CONSUMPTION
+    default_value = DEFAULT_MIN_POWER_CONSUMPTION

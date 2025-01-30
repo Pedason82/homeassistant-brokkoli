@@ -20,6 +20,9 @@ ATTR_PPFD = "ppfd"
 ATTR_MMOL = "mmol"
 ATTR_MOL = "mol"
 ATTR_DLI = "dli"
+ATTR_WATER_CONSUMPTION = "water_consumption"
+ATTR_FERTILIZER_CONSUMPTION = "fertilizer_consumption"
+ATTR_POWER_CONSUMPTION = "power_consumption"
 
 ATTR_TEMPERATURE = "temperature"
 ATTR_PROBLEM = "problem"
@@ -50,6 +53,7 @@ READING_MOL = "mol"
 READING_DLI = "dli"
 READING_MOISTURE_CONSUMPTION = "water consumption"
 READING_FERTILIZER_CONSUMPTION = "fertilizer consumption"
+READING_POWER_CONSUMPTION = "power consumption"
 
 
 ATTR_MAX_ILLUMINANCE_HISTORY = "max_illuminance"
@@ -76,6 +80,14 @@ DEFAULT_MIN_MOL = 2
 DEFAULT_MAX_MOL = 30
 DEFAULT_MIN_DLI = 2
 DEFAULT_MAX_DLI = 30
+
+# Neue Konstanten für Water/Fertilizer Consumption
+DEFAULT_MIN_WATER_CONSUMPTION = 0.1
+DEFAULT_MAX_WATER_CONSUMPTION = 2.0
+DEFAULT_MIN_FERTILIZER_CONSUMPTION = 0.1
+DEFAULT_MAX_FERTILIZER_CONSUMPTION = 2.0
+DEFAULT_MIN_POWER_CONSUMPTION = 0.1
+DEFAULT_MAX_POWER_CONSUMPTION = 5.0
 
 DEFAULT_IMAGE_PATH = "/config/www/images/plants/"
 DEFAULT_IMAGE_LOCAL_URL = "/local/images/plants/"
@@ -111,6 +123,7 @@ FLOW_SENSOR_MOISTURE = "moisture_sensor"
 FLOW_SENSOR_CONDUCTIVITY = "conductivity_sensor"
 FLOW_SENSOR_ILLUMINANCE = "illuminance_sensor"
 FLOW_SENSOR_HUMIDITY = "humidity_sensor"
+FLOW_SENSOR_POWER_CONSUMPTION = "power_consumption_sensor"
 
 FLOW_TEMP_UNIT = "temperature_unit"
 FLOW_ILLUMINANCE_TRIGGER = "illuminance_trigger"
@@ -119,6 +132,9 @@ FLOW_TEMPERATURE_TRIGGER = "temperature_trigger"
 FLOW_DLI_TRIGGER = "dli_trigger"
 FLOW_MOISTURE_TRIGGER = "moisture_trigger"
 FLOW_CONDUCTIVITY_TRIGGER = "conductivity_trigger"
+FLOW_WATER_CONSUMPTION_TRIGGER = "water_consumption_trigger"
+FLOW_FERTILIZER_CONSUMPTION_TRIGGER = "fertilizer_consumption_trigger"
+FLOW_POWER_CONSUMPTION_TRIGGER = "power_consumption_trigger"
 
 FLOW_FORCE_SPECIES_UPDATE = "force_update"
 
@@ -131,6 +147,7 @@ ICON_PPFD = "mdi:white-balance-sunny"
 ICON_TEMPERATURE = "mdi:thermometer"
 ICON_WATER_CONSUMPTION = "mdi:water-pump"
 ICON_FERTILIZER_CONSUMPTION = "mdi:chart-line-variant"
+ICON_POWER_CONSUMPTION = "mdi:flash"
 
 OPB_GET = "get"
 OPB_SEARCH = "search"
@@ -148,6 +165,7 @@ DEFAULT_LUX_TO_PPFD = 0.0185
 SERVICE_REPLACE_SENSOR = "replace_sensor"
 SERVICE_REMOVE_PLANT = "remove_plant"
 SERVICE_REMOVE_CYCLE = "remove_cycle"
+SERVICE_MOVE_TO_AREA = "move_to_area"
 
 STATE_LOW = "Low"
 STATE_HIGH = "High"
@@ -172,9 +190,16 @@ CONF_MIN_MOL = f"min_{ATTR_MOL}"
 CONF_MAX_MOL = f"max_{ATTR_MOL}"
 CONF_MIN_DLI = f"min_{ATTR_DLI}"
 CONF_MAX_DLI = f"max_{ATTR_DLI}"
+
+CONF_MIN_WATER_CONSUMPTION = f"min_{ATTR_WATER_CONSUMPTION}"
+CONF_MAX_WATER_CONSUMPTION = f"max_{ATTR_WATER_CONSUMPTION}"
+CONF_MIN_FERTILIZER_CONSUMPTION = f"min_{ATTR_FERTILIZER_CONSUMPTION}"
+CONF_MAX_FERTILIZER_CONSUMPTION = f"max_{ATTR_FERTILIZER_CONSUMPTION}"
+CONF_MIN_POWER_CONSUMPTION = f"min_{ATTR_POWER_CONSUMPTION}"
+CONF_MAX_POWER_CONSUMPTION = f"max_{ATTR_POWER_CONSUMPTION}"
+
 CONF_MIN_BRIGHTNESS = "min_brightness"  # DEPRECATED. Only used for config migration
 CONF_MAX_BRIGHTNESS = "max_brightness"  # DEPRECATED. Only used for config migration
-
 
 CONF_CHECK_DAYS = "check_days"
 CONF_STRAIN = "strain"
@@ -194,9 +219,17 @@ CONF_PLANTBOOK_MAPPING = {
     CONF_MAX_HUMIDITY: "max_env_humid",
     CONF_MIN_MMOL: "min_light_mmol",
     CONF_MAX_MMOL: "max_light_mmol",
+    CONF_MIN_POWER_CONSUMPTION: "min_power_consumption",
+    CONF_MAX_POWER_CONSUMPTION: "max_power_consumption",
+    # Neue Mappings für Water/Fertilizer Consumption
+    CONF_MIN_WATER_CONSUMPTION: "min_water_consumption",
+    CONF_MAX_WATER_CONSUMPTION: "max_water_consumption",
+    CONF_MIN_FERTILIZER_CONSUMPTION: "min_fertilizer_consumption",
+    CONF_MAX_FERTILIZER_CONSUMPTION: "max_fertilizer_consumption",
 }
 
 # Growth phases
+GROWTH_PHASE_SEEDS = "Samen"
 GROWTH_PHASE_GERMINATION = "Keimen"
 GROWTH_PHASE_ROOTING = "Wurzeln"
 GROWTH_PHASE_GROWING = "Wachstum"
@@ -206,6 +239,7 @@ GROWTH_PHASE_REMOVED = "Entfernt"  # Ans Ende verschoben
 DEFAULT_GROWTH_PHASE = GROWTH_PHASE_ROOTING
 
 GROWTH_PHASES = [
+    GROWTH_PHASE_SEEDS,
     GROWTH_PHASE_GERMINATION,
     GROWTH_PHASE_ROOTING,
     GROWTH_PHASE_GROWING,
@@ -215,6 +249,7 @@ GROWTH_PHASES = [
 ]
 
 ATTR_FLOWERING_DURATION = "flowering_duration"
+ATTR_ORIGINAL_FLOWERING_DURATION = "original_flowering_duration"  # Neue Konstante für die Original-Blütezeit aus OpenPlantbook
 
 # Neue Konstanten für zusätzliche Pflanzeneigenschaften
 ATTR_WEBSITE = "website"
@@ -234,6 +269,7 @@ ATTR_MOLD_RESISTANCE = "mold_resistance"
 ATTR_DIFFICULTY = "difficulty"
 ATTR_YIELD = "yield"
 ATTR_NOTES = "notes"
+ATTR_IMAGES = "images"  # Neues Attribut für Bilderliste
 
 # Neue Konstante für den Plant-Erstellungsstatus
 ATTR_IS_NEW_PLANT = "is_new_plant"
@@ -295,6 +331,10 @@ DEFAULT_AGGREGATIONS = {
     'total_integral': AGGREGATION_ORIGINAL,
     'moisture_consumption': AGGREGATION_ORIGINAL,
     'fertilizer_consumption': AGGREGATION_ORIGINAL,
+    'total_water_consumption': AGGREGATION_ORIGINAL,
+    'total_fertilizer_consumption': AGGREGATION_ORIGINAL,
+    'power_consumption': AGGREGATION_MEAN,
+    'total_power_consumption': AGGREGATION_ORIGINAL,
 }
 
 # Config Flow Keys
@@ -318,7 +358,7 @@ DEFAULT_POT_SIZE = 0.4  # 0,4 Liter als Standardwert
 ATTR_WATER_CAPACITY = "water_capacity"
 DEFAULT_WATER_CAPACITY = 50  # 50% als Standardwert
 
-# Konstanten für Default-Werte
+# Neue Konstanten für Default-Werte
 CONF_DEFAULT_MAX_MOISTURE = "default_max_moisture"
 CONF_DEFAULT_MIN_MOISTURE = "default_min_moisture"
 CONF_DEFAULT_MAX_ILLUMINANCE = "default_max_illuminance"
@@ -331,3 +371,53 @@ CONF_DEFAULT_MAX_CONDUCTIVITY = "default_max_conductivity"
 CONF_DEFAULT_MIN_CONDUCTIVITY = "default_min_conductivity"
 CONF_DEFAULT_MAX_HUMIDITY = "default_max_humidity"
 CONF_DEFAULT_MIN_HUMIDITY = "default_min_humidity"
+
+# Neue Default-Konstanten für Water/Fertilizer Consumption
+CONF_DEFAULT_MIN_WATER_CONSUMPTION = "default_min_water_consumption"
+CONF_DEFAULT_MAX_WATER_CONSUMPTION = "default_max_water_consumption"
+CONF_DEFAULT_MIN_FERTILIZER_CONSUMPTION = "default_min_fertilizer_consumption"
+CONF_DEFAULT_MAX_FERTILIZER_CONSUMPTION = "default_max_fertilizer_consumption"
+CONF_DEFAULT_MIN_POWER_CONSUMPTION = "default_min_power_consumption"
+CONF_DEFAULT_MAX_POWER_CONSUMPTION = "default_max_power_consumption"
+
+ATTR_WATER_CONSUMPTION = "water_consumption"
+ATTR_FERTILIZER_CONSUMPTION = "fertilizer_consumption"
+ATTR_POWER_CONSUMPTION = "power_consumption"
+
+DEFAULT_KWH_PRICE = 0.3684  # Default kWh Preis in Euro
+ATTR_KWH_PRICE = "kwh_price"  # Attribut für den kWh Preis
+READING_ENERGY_COST = "energy cost"  # Lesbarer Name für Energiekosten
+ICON_ENERGY_COST = "mdi:currency-eur"  # Icon für Energiekosten
+
+# Neue Konstanten für Bild-Download
+SERVICE_ADD_IMAGE = "add_image"
+FLOW_DOWNLOAD_PATH = "download_path"
+
+# Treatment Options
+TREATMENT_NONE = ""
+TREATMENT_CUT = "cut"
+TREATMENT_SUPER_CROPPING = "super cropping"
+TREATMENT_TOPPING = "topping"
+TREATMENT_LOLLIPOP = "lollipop"
+TREATMENT_FIM = "fim"
+TREATMENT_RIB = "rib"
+TREATMENT_SPRAY_PEST = "spray pest"
+TREATMENT_SPRAY_WATER = "spray water"
+
+TREATMENT_OPTIONS = [
+    TREATMENT_CUT,
+    TREATMENT_SUPER_CROPPING,
+    TREATMENT_TOPPING,
+    TREATMENT_LOLLIPOP,
+    TREATMENT_FIM,
+    TREATMENT_RIB,
+    TREATMENT_SPRAY_PEST,
+    TREATMENT_SPRAY_WATER,
+]
+
+# Health Rating Constants
+HEALTH_MIN_VALUE = 0
+HEALTH_MAX_VALUE = 5
+HEALTH_STEP = 0.5
+HEALTH_DEFAULT = HEALTH_MAX_VALUE  # Volle Punktzahl als Standard
+CONF_DEFAULT_HEALTH = "default_health"  # Für Config Node

@@ -3,7 +3,11 @@ from __future__ import annotations
 
 import logging
 
-from homeassistant.components.number import NumberEntity
+from homeassistant.components.number import (
+    NumberEntity,
+    NumberMode,
+    RestoreNumber,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
@@ -28,6 +32,11 @@ from .const import (
     DEFAULT_POT_SIZE,
     ATTR_WATER_CAPACITY,
     DEFAULT_WATER_CAPACITY,
+    HEALTH_MIN_VALUE,
+    HEALTH_MAX_VALUE,
+    HEALTH_STEP,
+    HEALTH_DEFAULT,
+    CONF_DEFAULT_HEALTH,
 )
 
 from .plant_thresholds import (
@@ -43,7 +52,15 @@ from .plant_thresholds import (
     PlantMinHumidity,
     PlantMaxDli,
     PlantMinDli,
+    PlantMaxWaterConsumption,
+    PlantMinWaterConsumption,
+    PlantMaxFertilizerConsumption,
+    PlantMinFertilizerConsumption,
+    PlantMaxPowerConsumption,
+    PlantMinPowerConsumption,
 )
+
+from .plant_health import PlantHealthNumber
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,6 +91,13 @@ async def async_setup_entry(
         plant,
     )
     
+    # Health Rating
+    health_number = PlantHealthNumber(
+        hass,
+        entry,
+        plant,
+    )
+    
     # Min/Max Thresholds
     max_moisture = PlantMaxMoisture(hass, entry, plant)
     min_moisture = PlantMinMoisture(hass, entry, plant)
@@ -88,10 +112,19 @@ async def async_setup_entry(
     max_dli = PlantMaxDli(hass, entry, plant)
     min_dli = PlantMinDli(hass, entry, plant)
 
+    # Water/Fertilizer/Power Consumption Thresholds
+    max_water_consumption = PlantMaxWaterConsumption(hass, entry, plant)
+    min_water_consumption = PlantMinWaterConsumption(hass, entry, plant)
+    max_fertilizer_consumption = PlantMaxFertilizerConsumption(hass, entry, plant)
+    min_fertilizer_consumption = PlantMinFertilizerConsumption(hass, entry, plant)
+    max_power_consumption = PlantMaxPowerConsumption(hass, entry, plant)
+    min_power_consumption = PlantMinPowerConsumption(hass, entry, plant)
+
     entities = [
         pot_size,
         water_capacity,
         flowering_duration,
+        health_number,
         max_moisture,
         min_moisture,
         max_temperature,
@@ -104,6 +137,12 @@ async def async_setup_entry(
         min_humidity,
         max_dli,
         min_dli,
+        max_water_consumption,
+        min_water_consumption,
+        max_fertilizer_consumption,
+        min_fertilizer_consumption,
+        max_power_consumption,
+        min_power_consumption,
     ]
     
     async_add_entities(entities)
@@ -112,6 +151,7 @@ async def async_setup_entry(
     plant.add_pot_size(pot_size)
     plant.add_water_capacity(water_capacity)
     plant.add_flowering_duration(flowering_duration)
+    plant.add_health_number(health_number)
     plant.add_thresholds(
         max_moisture=max_moisture,
         min_moisture=min_moisture,
@@ -125,6 +165,12 @@ async def async_setup_entry(
         min_humidity=min_humidity,
         max_dli=max_dli,
         min_dli=min_dli,
+        max_water_consumption=max_water_consumption,
+        min_water_consumption=min_water_consumption,
+        max_fertilizer_consumption=max_fertilizer_consumption,
+        min_fertilizer_consumption=min_fertilizer_consumption,
+        max_power_consumption=max_power_consumption,
+        min_power_consumption=min_power_consumption,
     )
 
     return True
@@ -196,7 +242,7 @@ class FloweringDurationNumber(NumberEntity, RestoreEntity):
         self._attr_native_value = round(new_duration)
         self.async_write_ha_state()
 
-    async def async_set_native_value(self, value: float) -> None:
+    async def async_set_native_value(self, value: int) -> None:
         """Update the current value."""
         self._attr_native_value = value
         self.async_write_ha_state()
@@ -262,7 +308,7 @@ class FloweringDurationNumber(NumberEntity, RestoreEntity):
             last_state = await self.async_get_last_state()
             if last_state is not None:
                 try:
-                    self._attr_native_value = float(last_state.state)
+                    self._attr_native_value = int(last_state.state)
                 except (TypeError, ValueError):
                     self._attr_native_value = 0
 
@@ -547,5 +593,69 @@ class WaterCapacityNumber(NumberEntity, RestoreEntity):
                     self._attr_native_value = float(last_state.state)
                 except (TypeError, ValueError):
                     self._attr_native_value = DEFAULT_WATER_CAPACITY
+
+
+class PlantHealthNumber(NumberEntity, RestoreEntity):
+    """Number entity for plant health rating."""
+
+    def __init__(self, hass: HomeAssistant, config: ConfigEntry, plant_device) -> None:
+        """Initialize the health number entity."""
+        self._attr_native_min_value = HEALTH_MIN_VALUE
+        self._attr_native_max_value = HEALTH_MAX_VALUE
+        self._attr_native_step = HEALTH_STEP
+        self._attr_mode = NumberMode.BOX
+        
+        # Hole Default-Wert aus Config Node oder nutze Standard
+        default_value = HEALTH_DEFAULT
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            if entry.data.get("is_config", False):
+                default_value = entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_HEALTH, HEALTH_DEFAULT)
+                break
+                
+        self._attr_native_value = default_value
+        self._attr_icon = "mdi:heart-pulse"
+        
+        self._config = config
+        self._hass = hass
+        self._plant = plant_device
+        self._attr_name = f"{plant_device.name} Health"
+        self._attr_unique_id = f"{config.entry_id}-health"
+
+    @property
+    def device_info(self) -> dict:
+        """Return device info."""
+        return {
+            "identifiers": {(DOMAIN, self._plant.unique_id)},
+        }
+
+    async def async_added_to_hass(self) -> None:
+        """Handle entity which will be added."""
+        await super().async_added_to_hass()
+        
+        # Prüfe ob es eine Neuerstellung ist
+        if self._config.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
+            # Neue Plant - initialisiere mit Default
+            self._attr_native_value = HEALTH_DEFAULT
+        else:
+            # Neustart - stelle letzten Zustand wieder her
+            last_state = await self.async_get_last_state()
+            if last_state is not None:
+                try:
+                    self._attr_native_value = float(last_state.state)
+                except (TypeError, ValueError):
+                    self._attr_native_value = HEALTH_DEFAULT
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Update the current value."""
+        # Runde auf erlaubte Schritte
+        value = round(value / self._attr_native_step) * self._attr_native_step
+        self._attr_native_value = value
+        self.async_write_ha_state()
+
+        _LOGGER.debug(
+            "Updated health rating to %.1f for %s",
+            value,
+            self._plant.entity_id
+        )
 
 

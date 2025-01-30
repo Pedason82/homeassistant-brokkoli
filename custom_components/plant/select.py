@@ -14,6 +14,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.core import callback
+from homeassistant.util import dt as dt_util
 
 from .const import (
     ATTR_PLANT,
@@ -32,6 +33,9 @@ from .const import (
     DEVICE_TYPE_CYCLE,
     CYCLE_DOMAIN,
     SERVICE_MOVE_TO_CYCLE,
+    GROWTH_PHASE_SEEDS,
+    TREATMENT_OPTIONS,
+    TREATMENT_NONE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,6 +54,11 @@ async def async_setup_entry(
     entities.append(growth_phase_select)
     plant.add_growth_phase_select(growth_phase_select)
 
+    # Treatment Select für alle Devices
+    treatment_select = PlantTreatmentSelect(hass, entry, plant)
+    entities.append(treatment_select)
+    plant.add_treatment_select(treatment_select)
+
     # Cycle Select nur für Plants, nicht für Cycles
     if plant.device_type == DEVICE_TYPE_PLANT:
         cycle_select = PlantCycleSelect(hass, entry, plant)
@@ -62,12 +71,24 @@ class PlantGrowthPhaseSelect(SelectEntity, RestoreEntity):
 
     # Mapping für Phasen zu Datums-Attributen
     date_mapping = {
+        GROWTH_PHASE_SEEDS: "samen_beginn",
         GROWTH_PHASE_GERMINATION: "keimen_beginn",
         GROWTH_PHASE_ROOTING: "wurzeln_beginn",
         GROWTH_PHASE_GROWING: "wachstum_beginn",
         GROWTH_PHASE_FLOWERING: "blüte_beginn",
         GROWTH_PHASE_REMOVED: "entfernt",
         GROWTH_PHASE_HARVESTED: "geerntet"
+    }
+
+    # Mapping für Phasen zu Dauer-Attributen
+    duration_mapping = {
+        GROWTH_PHASE_SEEDS: "samen_dauer",
+        GROWTH_PHASE_GERMINATION: "keimen_dauer",
+        GROWTH_PHASE_ROOTING: "wurzeln_dauer", 
+        GROWTH_PHASE_GROWING: "wachstum_dauer",
+        GROWTH_PHASE_FLOWERING: "blüte_dauer",
+        GROWTH_PHASE_REMOVED: "entfernt_dauer",
+        GROWTH_PHASE_HARVESTED: "geerntet_dauer"
     }
 
     def __init__(self, hass: HomeAssistant, config: ConfigEntry, plant_device) -> None:
@@ -83,33 +104,74 @@ class PlantGrowthPhaseSelect(SelectEntity, RestoreEntity):
         
         # Ordinal Mapping für die Phasen (ohne REMOVED)
         self.phase_order = {
-            GROWTH_PHASE_GERMINATION: 0,
-            GROWTH_PHASE_ROOTING: 1, 
-            GROWTH_PHASE_GROWING: 2,
-            GROWTH_PHASE_FLOWERING: 3,
-            GROWTH_PHASE_HARVESTED: 4
+            GROWTH_PHASE_SEEDS: 0,
+            GROWTH_PHASE_GERMINATION: 1,
+            GROWTH_PHASE_ROOTING: 2, 
+            GROWTH_PHASE_GROWING: 3,
+            GROWTH_PHASE_FLOWERING: 4,
+            GROWTH_PHASE_HARVESTED: 5
         }
         
-        # Initialize date attributes
+        # Initialize date and duration attributes
         current_date = datetime.now().strftime("%Y-%m-%d")
         self._attr_extra_state_attributes = {
             "friendly_name": self._attr_name,
+            # Datum Attribute
+            "samen_beginn": None,
             "keimen_beginn": None,
             "wurzeln_beginn": None,
             "wachstum_beginn": None,
             "blüte_beginn": None,
             "entfernt": None,
             "geerntet": None,
-            "aggregation_method": config.data[FLOW_PLANT_INFO].get("growth_phase_aggregation", "min")
+            # Dauer Attribute
+            "samen_dauer": None,
+            "keimen_dauer": None,
+            "wurzeln_dauer": None,
+            "wachstum_dauer": None,
+            "blüte_dauer": None,
+            "entfernt_dauer": None,
+            "geerntet_dauer": None,
+            "aggregation_method": config.data[FLOW_PLANT_INFO].get("growth_phase_aggregation", "min"),
+            # Neue Area History
+            "area_history": []
         }
         
         # Setze das initiale Datum für die Startphase
         if initial_phase in self.date_mapping:
             self._attr_extra_state_attributes[self.date_mapping[initial_phase]] = current_date
 
+    @callback
+    def _handle_area_change(self, event):
+        """Handle area change events."""
+        if event.data.get("plant_entity_id") == self._plant.entity_id:
+            # Hole bestehende Historie oder initialisiere neues Array
+            area_history = list(self._attr_extra_state_attributes.get("area_history", []))
+            
+            # Füge neuen Eintrag hinzu
+            area_history.append({
+                "date": dt_util.now().strftime("%Y-%m-%d"),
+                "area": event.data.get("area_name"),
+                "area_id": event.data.get("area_id")
+            })
+            
+            # Update Attribute
+            self._attr_extra_state_attributes["area_history"] = area_history
+            self.async_write_ha_state()
+            _LOGGER.debug(
+                "Updated area history for %s: %s",
+                self._plant.entity_id,
+                area_history
+            )
+
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
         await super().async_added_to_hass()
+        
+        # Registriere Event Listener für Area Changes
+        self.async_on_remove(
+            self.hass.bus.async_listen("plant_area_changed", self._handle_area_change)
+        )
         
         # Prüfe ob es eine Neuerstellung ist
         if self._config.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
@@ -188,9 +250,13 @@ class PlantGrowthPhaseSelect(SelectEntity, RestoreEntity):
         """Return entity specific state attributes."""
         attrs = self._attr_extra_state_attributes.copy()
         
-        # Füge Member Plants für Cycles hinzu
+        # Füge Member Plants und Aggregation Method nur für Cycles hinzu
         if self._plant.device_type == DEVICE_TYPE_CYCLE:
             attrs["member_plants"] = self._plant._member_plants
+            attrs["aggregation_method"] = self._attr_extra_state_attributes.get("aggregation_method", "min")
+        else:
+            # Entferne aggregation_method bei normalen Plants
+            attrs.pop("aggregation_method", None)
             
         return attrs
 
@@ -200,6 +266,33 @@ class PlantGrowthPhaseSelect(SelectEntity, RestoreEntity):
         return {
             "identifiers": {(DOMAIN, self._plant.unique_id)},
         }
+
+    def _calculate_phase_duration(self, old_phase: str, new_phase: str) -> None:
+        """Berechne die Dauer der alten Phase und aktualisiere das Attribut."""
+        if old_phase not in self.date_mapping or old_phase not in self.duration_mapping:
+            return
+
+        start_date_str = self._attr_extra_state_attributes[self.date_mapping[old_phase]]
+        if not start_date_str:
+            return
+
+        try:
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+            end_date = datetime.now()
+            duration = (end_date - start_date).days
+            
+            # Speichere die Dauer
+            self._attr_extra_state_attributes[self.duration_mapping[old_phase]] = duration
+            
+            _LOGGER.debug(
+                "Berechnete Dauer für Phase %s: %d Tage (von %s bis %s)",
+                old_phase,
+                duration,
+                start_date_str,
+                end_date.strftime("%Y-%m-%d")
+            )
+        except ValueError as e:
+            _LOGGER.error("Fehler bei der Berechnung der Phasendauer: %s", e)
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
@@ -212,6 +305,10 @@ class PlantGrowthPhaseSelect(SelectEntity, RestoreEntity):
         
         current_date = datetime.now().strftime("%Y-%m-%d")
         
+        # Berechne die Dauer der alten Phase
+        if self._attr_current_option:
+            self._calculate_phase_duration(self._attr_current_option, option)
+            
         if option in self.date_mapping:
             self._attr_extra_state_attributes[self.date_mapping[option]] = current_date
             
@@ -406,3 +503,60 @@ class PlantCycleSelect(SelectEntity, RestoreEntity):
         )
 
         # Flowering Duration wird automatisch im move_to_cycle Service aktualisiert
+
+class PlantTreatmentSelect(SelectEntity, RestoreEntity):
+    """Representation of a plant treatment selector."""
+
+    def __init__(self, hass: HomeAssistant, config: ConfigEntry, plant_device) -> None:
+        """Initialize the treatment select entity."""
+        self._attr_options = [""] + TREATMENT_OPTIONS  # Leere Option am Anfang
+        self._attr_current_option = ""  # Leere Option als Standard
+        self._config = config
+        self._hass = hass
+        self._plant = plant_device
+        self._attr_name = f"{plant_device.name} Treatment"
+        self._attr_unique_id = f"{config.entry_id}-treatment"
+        
+        # Initialize basic attributes
+        self._attr_extra_state_attributes = {
+            "friendly_name": self._attr_name
+        }
+
+    @property
+    def device_info(self) -> dict:
+        """Return device info."""
+        return {
+            "identifiers": {(DOMAIN, self._plant.unique_id)},
+        }
+
+    async def async_added_to_hass(self) -> None:
+        """Handle entity which will be added."""
+        await super().async_added_to_hass()
+        
+        # Prüfe ob es eine Neuerstellung ist
+        if self._config.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
+            # Neue Plant - initialisiere mit leerem String
+            self._attr_current_option = ""
+        else:
+            # Neustart - stelle letzten Zustand wieder her
+            last_state = await self.async_get_last_state()
+            if last_state:
+                self._attr_current_option = last_state.state if last_state.state != "None" else ""
+                if last_state.attributes:
+                    self._attr_extra_state_attributes.update(last_state.attributes)
+
+    async def async_select_option(self, option: str) -> None:
+        """Change the selected option."""
+        if not option:  # Wenn leere Option ausgewählt wurde
+            self._attr_current_option = ""
+            self.async_write_ha_state()
+            return
+
+        self._attr_current_option = option
+        self.async_write_ha_state()
+
+        _LOGGER.debug(
+            "Selected treatment %s for %s",
+            option,
+            self._plant.entity_id
+        )

@@ -1,6 +1,9 @@
 """Services for plant integration."""
 import logging
 import voluptuous as vol
+import aiohttp
+import os
+from datetime import datetime
 
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv
@@ -11,6 +14,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import selector
 from homeassistant.helpers.template import Template
+from homeassistant.helpers import area_registry as ar
 
 from .const import (
     DOMAIN,
@@ -37,6 +41,12 @@ from .const import (
     ATTR_IS_NEW_PLANT,
     ATTR_DEVICE_TYPE,
     ATTR_FLOWERING_DURATION,
+    ATTR_ORIGINAL_FLOWERING_DURATION,
+    SERVICE_MOVE_TO_AREA,
+    SERVICE_ADD_IMAGE,
+    FLOW_DOWNLOAD_PATH,
+    DEFAULT_IMAGE_PATH,
+    DEFAULT_IMAGE_LOCAL_URL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -83,6 +93,12 @@ UPDATE_PLANT_ATTRIBUTES_SCHEMA = vol.Schema({
     vol.Optional("timestamp"): cv.string,
     vol.Optional("effects"): cv.string,
     vol.Optional("lineage"): cv.string,
+})
+
+# Schema für add_image Service
+ADD_IMAGE_SCHEMA = vol.Schema({
+    vol.Required("entity_id"): cv.entity_id,
+    vol.Required("image_url"): cv.url,
 })
 
 async def async_setup_services(hass: HomeAssistant) -> None:
@@ -444,8 +460,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Kopiere alle Daten von der Quell-Plant
         plant_info = dict(source_plant._plant_info)
         
-        # Setze den flowering_duration Wert
+        # Setze beide flowering_duration Werte
         plant_info[ATTR_FLOWERING_DURATION] = flowering_duration
+        plant_info[ATTR_ORIGINAL_FLOWERING_DURATION] = source_plant._plant_info.get(ATTR_ORIGINAL_FLOWERING_DURATION, flowering_duration)
         
         # Markiere als neue Plant
         plant_info[ATTR_IS_NEW_PLANT] = True
@@ -523,18 +540,20 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         new_data[FLOW_PLANT_INFO] = plant_info
         
         # Update attributes in der Config
-        for attr in ["strain", "breeder", "flowering_duration", "pid", 
+        for attr in ["strain", "breeder", "original_flowering_duration", "pid", 
                     "sorte", "feminized", "timestamp", "effects", "smell",
                     "taste", "phenotype", "hunger", "growth_stretch",
                     "flower_stretch", "mold_resistance", "difficulty",
                     "yield", "notes", "website", "infotext1", "infotext2",
-                    "lineage"]:
+                    "lineage"]:  # images entfernt aus der Liste
             if attr in call.data:
                 plant_info[attr] = call.data[attr]
 
-        # Debug-Log vor dem Update
-        _LOGGER.debug(f"Current config data: {target_entry.data}")
-        _LOGGER.debug(f"New config data: {new_data}")
+        # Verarbeite images separat
+        if "images" in call.data:
+            # Teile den String an Kommas und entferne Leerzeichen
+            images = [img.strip() for img in call.data["images"].split(",") if img.strip()]
+            plant_info["images"] = images
 
         # Aktualisiere die Config Entry mit den neuen Daten
         hass.config_entries.async_update_entry(
@@ -544,13 +563,35 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         # Aktualisiere das Plant-Objekt mit den neuen Daten
         target_plant._plant_info = plant_info
+        if "images" in call.data:
+            target_plant._images = plant_info["images"]
+        
+        # Update Growth Phase Attribute wenn vorhanden
+        if hasattr(target_plant, "growth_phase_select"):
+            phase_attrs = target_plant.growth_phase_select.extra_state_attributes.copy()
+            
+            # Update Datums-Attribute
+            for date_attr in [
+                "samen_beginn", "keimen_beginn", "wurzeln_beginn",
+                "wachstum_beginn", "blüte_beginn", "geerntet", "entfernt"
+            ]:
+                if date_attr in call.data:
+                    phase_attrs[date_attr] = call.data[date_attr]
+
+            # Update Dauer-Attribute
+            for duration_attr in [
+                "samen_dauer", "keimen_dauer", "wurzeln_dauer",
+                "wachstum_dauer", "blüte_dauer", "geerntet_dauer", "entfernt_dauer"
+            ]:
+                if duration_attr in call.data:
+                    phase_attrs[duration_attr] = call.data[duration_attr]
+
+            # Aktualisiere die Attribute der Growth Phase Entity
+            target_plant.growth_phase_select._attr_extra_state_attributes = phase_attrs
+            target_plant.growth_phase_select.async_write_ha_state()
         
         # Update entity state
         target_plant.async_write_ha_state()
-        
-        # Debug-Log nach dem Update
-        _LOGGER.debug(f"Updated attributes for plant {entity_id}")
-        _LOGGER.debug(f"Final config data: {target_entry.data}")
 
     async def async_extract_entities(hass: HomeAssistant, call: ServiceCall):
         """Extract target entities from service call."""
@@ -564,12 +605,199 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 
         return entities
 
+    async def move_to_area(call: ServiceCall) -> None:
+        """Move plants to an area."""
+        device_ids = call.data.get("device_id")
+        area_id = call.data.get("area_id")
+
+        # Convert to list if single string
+        if isinstance(device_ids, str):
+            device_ids = [device_ids]
+
+        device_registry = dr.async_get(hass)
+        entity_registry = er.async_get(hass)
+        area_registry = ar.async_get(hass)
+
+        # Validate area_id
+        if area_id and not area_registry.async_get_area(area_id):
+            _LOGGER.error(f"Area {area_id} not found")
+            return
+
+        # Process each device
+        for device_id in device_ids:
+            # Get device directly by ID
+            device = device_registry.async_get(device_id)
+            if not device:
+                _LOGGER.error(f"Device {device_id} not found")
+                continue
+
+            # Update device registry
+            device_registry.async_update_device(
+                device_id,
+                area_id=area_id
+            )
+
+            # Find plant entity for this device
+            plant_entity_id = None
+            for entity_entry in entity_registry.entities.values():
+                if entity_entry.device_id == device_id and entity_entry.domain == DOMAIN:
+                    plant_entity_id = entity_entry.entity_id
+                    break
+
+            if area_id:
+                area = area_registry.async_get_area(area_id)
+                _LOGGER.info(
+                    f"Device {device_id} successfully moved to area {area.name}"
+                )
+            else:
+                _LOGGER.info(
+                    f"Device {device_id} successfully removed from area"
+                )
+
+            # Fire event if we found the plant entity
+            if plant_entity_id:
+                hass.bus.async_fire(
+                    "plant_area_changed",
+                    {
+                        "plant_entity_id": plant_entity_id,
+                        "device_id": device_id,
+                        "area_id": area_id,
+                        "area_name": area.name if area_id else None
+                    }
+                )
+
+    async def add_image(call: ServiceCall) -> None:
+        """Add an image to a plant or cycle."""
+        entity_id = call.data.get("entity_id")
+        image_url = call.data.get("image_url")
+
+        if not entity_id or not image_url:
+            return
+
+        # Finde die Entity (Plant oder Cycle)
+        target_entity = None
+        for entry_id in hass.data[DOMAIN]:
+            if ATTR_PLANT in hass.data[DOMAIN][entry_id]:
+                entity = hass.data[DOMAIN][entry_id][ATTR_PLANT]
+                if entity.entity_id == entity_id:
+                    target_entity = entity
+                    break
+
+        if not target_entity:
+            return
+
+        # Hole den Download-Pfad aus der Konfiguration
+        config_entry = None
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            if entry.data.get("is_config", False):
+                config_entry = entry
+                break
+
+        download_path = config_entry.data[FLOW_PLANT_INFO].get(FLOW_DOWNLOAD_PATH, DEFAULT_IMAGE_PATH) if config_entry else DEFAULT_IMAGE_PATH
+
+        try:
+            # Erstelle den Download-Pfad falls er nicht existiert
+            if not os.path.exists(download_path):
+                os.makedirs(download_path)
+
+            # Generiere Dateinamen aus entity_id und Timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{entity_id}_{timestamp}.jpg"
+            filepath = os.path.join(download_path, filename)
+
+            # Lade das Bild herunter
+            async with aiohttp.ClientSession() as session:
+                async with session.get(image_url) as response:
+                    if response.status != 200:
+                        return
+                    image_data = await response.read()
+
+            # Speichere das Bild
+            def write_file():
+                with open(filepath, "wb") as f:
+                    f.write(image_data)
+
+            await hass.async_add_executor_job(write_file)
+
+            # Hole die aktuelle Bilderliste
+            current_images = target_entity._images if hasattr(target_entity, '_images') else []
+            
+            # Füge den neuen Dateinamen zur Liste hinzu
+            current_images.append(filename)
+            
+            # Aktualisiere die Attribute über den update_plant_attributes Service
+            # Konvertiere die Liste in einen komma-getrennten String ohne Leerzeichen
+            images_string = ",".join(str(img).strip() for img in current_images)
+            
+            await hass.services.async_call(
+                DOMAIN,
+                "update_plant_attributes",
+                {
+                    "entity_id": entity_id,
+                    "images": images_string
+                },
+                blocking=True
+            )
+
+        except Exception as e:
+            _LOGGER.error("Error adding image: %s", e)
+
     # Register services
     hass.services.async_register(
         DOMAIN, 
         SERVICE_REPLACE_SENSOR, 
         replace_sensor, 
         schema=REPLACE_SENSOR_SCHEMA
+    )
+    
+    # Schema für update_plant_attributes
+    UPDATE_PLANT_SCHEMA = vol.Schema({
+        vol.Required("entity_id"): cv.entity_id,
+        vol.Optional("strain"): cv.string,
+        vol.Optional("breeder"): cv.string,
+        vol.Optional("original_flowering_duration"): cv.positive_int,
+        vol.Optional("pid"): cv.string,
+        vol.Optional("sorte"): cv.string,
+        vol.Optional("feminized"): cv.boolean,
+        vol.Optional("timestamp"): cv.string,
+        vol.Optional("effects"): cv.string,
+        vol.Optional("smell"): cv.string,
+        vol.Optional("taste"): cv.string,
+        vol.Optional("phenotype"): cv.string,
+        vol.Optional("hunger"): cv.string,
+        vol.Optional("growth_stretch"): cv.string,
+        vol.Optional("flower_stretch"): cv.string,
+        vol.Optional("mold_resistance"): cv.string,
+        vol.Optional("difficulty"): cv.string,
+        vol.Optional("yield"): cv.string,
+        vol.Optional("notes"): cv.string,
+        vol.Optional("website"): cv.string,
+        vol.Optional("infotext1"): cv.string,
+        vol.Optional("infotext2"): cv.string,
+        vol.Optional("lineage"): cv.string,
+        vol.Optional("images"): cv.string,  # String statt Liste
+        # Growth Phase Attribute
+        vol.Optional("samen_beginn"): cv.string,
+        vol.Optional("samen_dauer"): cv.positive_int,
+        vol.Optional("keimen_beginn"): cv.string,
+        vol.Optional("keimen_dauer"): cv.positive_int,
+        vol.Optional("wurzeln_beginn"): cv.string,
+        vol.Optional("wurzeln_dauer"): cv.positive_int,
+        vol.Optional("wachstum_beginn"): cv.string,
+        vol.Optional("wachstum_dauer"): cv.positive_int,
+        vol.Optional("blüte_beginn"): cv.string,
+        vol.Optional("blüte_dauer"): cv.positive_int,
+        vol.Optional("geerntet"): cv.string,
+        vol.Optional("geerntet_dauer"): cv.positive_int,
+        vol.Optional("entfernt"): cv.string,
+        vol.Optional("entfernt_dauer"): cv.positive_int,
+    })
+
+    hass.services.async_register(
+        DOMAIN,
+        "update_plant_attributes",
+        update_plant_attributes,
+        schema=UPDATE_PLANT_SCHEMA
     )
     hass.services.async_register(DOMAIN, SERVICE_REMOVE_PLANT, remove_plant)
     hass.services.async_register(
@@ -596,34 +824,19 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         }),
     )
     hass.services.async_register(
-        DOMAIN,
-        "update_plant_attributes",
-        update_plant_attributes,
+        DOMAIN, 
+        SERVICE_MOVE_TO_AREA,
+        move_to_area,
         schema=vol.Schema({
-            vol.Required("entity_id"): cv.entity_id,
-            vol.Optional("phenotype"): cv.string,
-            vol.Optional("hunger"): cv.string,
-            vol.Optional("growth_stretch"): cv.string,
-            vol.Optional("flower_stretch"): cv.string,
-            vol.Optional("mold_resistance"): cv.string,
-            vol.Optional("difficulty"): cv.string,
-            vol.Optional("yield"): cv.string,
-            vol.Optional("notes"): cv.string,
-            vol.Optional("taste"): cv.string,
-            vol.Optional("smell"): cv.string,
-            vol.Optional("website"): cv.string,
-            vol.Optional("infotext1"): cv.string,
-            vol.Optional("infotext2"): cv.string,
-            vol.Optional("strain"): cv.string,
-            vol.Optional("breeder"): cv.string,
-            vol.Optional("flowering_duration"): cv.positive_int,
-            vol.Optional("pid"): cv.string,
-            vol.Optional("sorte"): cv.string,
-            vol.Optional("feminized"): cv.string,
-            vol.Optional("timestamp"): cv.string,
-            vol.Optional("effects"): cv.string,
-            vol.Optional("lineage"): cv.string,
+            vol.Required("device_id"): vol.Any(cv.string, [cv.string]),
+            vol.Optional("area_id"): cv.string,
         }),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_ADD_IMAGE,
+        add_image,
+        schema=ADD_IMAGE_SCHEMA
     )
 
 async def async_unload_services(hass: HomeAssistant) -> None:
@@ -633,4 +846,6 @@ async def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_CREATE_PLANT)
     hass.services.async_remove(DOMAIN, SERVICE_CREATE_CYCLE)
     hass.services.async_remove(DOMAIN, SERVICE_MOVE_TO_CYCLE)
-    hass.services.async_remove(DOMAIN, SERVICE_REMOVE_CYCLE) 
+    hass.services.async_remove(DOMAIN, SERVICE_REMOVE_CYCLE)
+    hass.services.async_remove(DOMAIN, SERVICE_MOVE_TO_AREA)
+    hass.services.async_remove(DOMAIN, SERVICE_ADD_IMAGE) 

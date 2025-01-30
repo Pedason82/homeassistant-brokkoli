@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import os
+from datetime import datetime
 
 import voluptuous as vol
 
@@ -46,6 +48,7 @@ from .const import (
     ATTR_MIN,
     ATTR_MOISTURE,
     ATTR_PLANT,
+    ATTR_POWER_CONSUMPTION,
     ATTR_SENSOR,
     ATTR_SENSORS,
     ATTR_STRAIN,
@@ -61,6 +64,15 @@ from .const import (
     FLOW_MOISTURE_TRIGGER,
     FLOW_PLANT_INFO,
     FLOW_TEMPERATURE_TRIGGER,
+    FLOW_WATER_CONSUMPTION_TRIGGER,
+    FLOW_FERTILIZER_CONSUMPTION_TRIGGER,
+    FLOW_POWER_CONSUMPTION_TRIGGER,
+    FLOW_SENSOR_TEMPERATURE,
+    FLOW_SENSOR_MOISTURE,
+    FLOW_SENSOR_CONDUCTIVITY,
+    FLOW_SENSOR_ILLUMINANCE,
+    FLOW_SENSOR_HUMIDITY,
+    FLOW_SENSOR_POWER_CONSUMPTION,
     OPB_DISPLAY_PID,
     READING_CONDUCTIVITY,
     READING_DLI,
@@ -68,6 +80,7 @@ from .const import (
     READING_ILLUMINANCE,
     READING_MOISTURE,
     READING_TEMPERATURE,
+    READING_POWER_CONSUMPTION,
     STATE_HIGH,
     STATE_LOW,
     ATTR_FLOWERING_DURATION,
@@ -82,11 +95,6 @@ from .const import (
     ATTR_YIELD,
     ATTR_NOTES,
     ATTR_IS_NEW_PLANT,
-    FLOW_SENSOR_TEMPERATURE,
-    FLOW_SENSOR_MOISTURE,
-    FLOW_SENSOR_CONDUCTIVITY,
-    FLOW_SENSOR_ILLUMINANCE,
-    FLOW_SENSOR_HUMIDITY,
     DEFAULT_GROWTH_PHASE,
     DEVICE_TYPE_PLANT,
     DEVICE_TYPE_CYCLE,
@@ -100,12 +108,19 @@ from .const import (
     AGGREGATION_MAX,
     AGGREGATION_ORIGINAL,
     DEFAULT_AGGREGATIONS,
+    ATTR_ORIGINAL_FLOWERING_DURATION,
+    ATTR_WATER_CONSUMPTION,
+    ATTR_FERTILIZER_CONSUMPTION,
+    ATTR_KWH_PRICE,
+    DEFAULT_KWH_PRICE,
+    FLOW_DOWNLOAD_PATH,
+    DEFAULT_IMAGE_PATH,
 )
 from .plant_helpers import PlantHelper
 from .services import async_setup_services, async_unload_services
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = [Platform.NUMBER, Platform.SENSOR, Platform.SELECT]
+PLATFORMS = [Platform.NUMBER, Platform.SENSOR, Platform.SELECT, Platform.TEXT]
 
 # Use this during testing to generate some dummy-sensors
 # to provide random readings for temperature, moisture etc.
@@ -132,12 +147,19 @@ async def _get_next_id(hass: HomeAssistant, device_type: str) -> str:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Plant from a config entry."""
     
-    # Wenn dies ein Konfigurationsknoten ist, keine Entities erstellen
+    # Wenn dies ein Konfigurationsknoten ist
     if entry.data.get("is_config", False):
         hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
             "config": entry.data[FLOW_PLANT_INFO]
         }
-        # Keine Platforms laden für den Konfigurationsknoten
+        
+        # Aktualisiere den kWh Preis in allen Plants/Cycles
+        kwh_price = entry.data[FLOW_PLANT_INFO].get(ATTR_KWH_PRICE, DEFAULT_KWH_PRICE)
+        for domain_entry_id in hass.data[DOMAIN]:
+            if ATTR_PLANT in hass.data[DOMAIN][domain_entry_id]:
+                plant = hass.data[DOMAIN][domain_entry_id][ATTR_PLANT]
+                plant.update_kwh_price(kwh_price)
+        
         return True
 
     # Normale Plant/Cycle Initialisierung fortsetzen
@@ -204,7 +226,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Service Setup auslagern - ersetze den alten Service-Code durch:
     await async_setup_services(hass)
     
+    # Registriere WebSocket Commands
     websocket_api.async_register_command(hass, ws_get_info)
+    websocket_api.async_register_command(hass, ws_upload_image)
+    websocket_api.async_register_command(hass, ws_delete_image)
+    websocket_api.async_register_command(hass, ws_set_main_image)
+    
     plant.async_schedule_update_ha_state(True)
 
     # Lets add the dummy sensors automatically if we are testing stuff
@@ -388,6 +415,337 @@ def ws_get_info(
     )
     return
 
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "plant/upload_image",
+        vol.Required("entity_id"): str,
+        vol.Required("filename"): str,
+        vol.Required("chunk"): str,
+        vol.Required("chunk_index"): int,
+        vol.Required("total_chunks"): int,
+    }
+)
+@websocket_api.async_response
+async def ws_upload_image(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict
+) -> None:
+    """Handle image upload via websocket in chunks."""
+    entity_id = msg["entity_id"]
+    filename = msg["filename"]
+    chunk = msg["chunk"]
+    chunk_index = msg["chunk_index"]
+    total_chunks = msg["total_chunks"]
+
+    # Finde die Entity (Plant oder Cycle)
+    target_entity = None
+    target_entry = None
+    for entry_id in hass.data[DOMAIN]:
+        if ATTR_PLANT in hass.data[DOMAIN][entry_id]:
+            entity = hass.data[DOMAIN][entry_id][ATTR_PLANT]
+            if entity.entity_id == entity_id:
+                target_entity = entity
+                target_entry = hass.config_entries.async_get_entry(entry_id)
+                break
+
+    if not target_entity or not target_entry:
+        connection.send_error(msg["id"], "entity_not_found", f"Entity {entity_id} not found")
+        return
+
+    # Hole den Download-Pfad aus der Konfiguration
+    config_entry = None
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if entry.data.get("is_config", False):
+            config_entry = entry
+            break
+
+    download_path = config_entry.data[FLOW_PLANT_INFO].get(FLOW_DOWNLOAD_PATH, DEFAULT_IMAGE_PATH) if config_entry else DEFAULT_IMAGE_PATH
+
+    try:
+        # Erstelle den Download-Pfad falls er nicht existiert
+        await hass.async_add_executor_job(lambda: os.makedirs(download_path, exist_ok=True))
+
+        # Generiere Dateinamen nur für den ersten Chunk
+        if chunk_index == 0:
+            # Wenn kein entity_picture existiert, verwende Breeder_Strain Format
+            if not target_entity._attr_entity_picture:
+                breeder = target_entity._plant_info.get(ATTR_BREEDER, "Unknown")
+                strain = target_entity._plant_info.get(ATTR_STRAIN, "Unknown")
+                _, ext = os.path.splitext(filename)
+                final_filename = f"{breeder}_{strain}{ext}".replace(" ", "_")
+                
+                # Hole die aktuelle Bilderliste aus der Config Entry
+                data = dict(target_entry.data)
+                plant_info = dict(data.get(FLOW_PLANT_INFO, {}))
+                
+                target_entity._attr_entity_picture = f"/local/images/plants/{final_filename}"
+                plant_info[ATTR_ENTITY_PICTURE] = f"/local/images/plants/{final_filename}"
+                
+                # Aktualisiere die Config Entry
+                data[FLOW_PLANT_INFO] = plant_info
+                hass.config_entries.async_update_entry(target_entry, data=data)
+            else:
+                # Für alle weiteren Bilder verwende den Timestamp
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                _, ext = os.path.splitext(filename)
+                final_filename = f"{entity_id}_{timestamp}{ext}"
+                
+            filepath = os.path.join(download_path, final_filename)
+            temp_filepath = f"{filepath}.part"
+            
+            # Speichere die Pfade in hass.data für nachfolgende Chunks
+            if DOMAIN not in hass.data:
+                hass.data[DOMAIN] = {}
+            if "uploads" not in hass.data[DOMAIN]:
+                hass.data[DOMAIN]["uploads"] = {}
+            hass.data[DOMAIN]["uploads"][entity_id] = {
+                "filepath": filepath,
+                "temp_filepath": temp_filepath,
+                "final_filename": final_filename
+            }
+        else:
+            # Hole die gespeicherten Pfade für nachfolgende Chunks
+            upload_info = hass.data[DOMAIN]["uploads"].get(entity_id)
+            if not upload_info:
+                connection.send_error(msg["id"], "upload_error", "Upload session not found")
+                return
+            filepath = upload_info["filepath"]
+            temp_filepath = upload_info["temp_filepath"]
+            final_filename = upload_info["final_filename"]
+
+        # Schreibe den Chunk in einem Executor
+        chunk_data = bytes.fromhex(chunk)
+        mode = "ab" if chunk_index > 0 else "wb"
+        
+        async def write_chunk():
+            def _write():
+                with open(temp_filepath, mode) as f:
+                    f.write(chunk_data)
+            await hass.async_add_executor_job(_write)
+                
+        await write_chunk()
+
+        # Wenn dies der letzte Chunk ist, benenne die Datei um und aktualisiere die Entity
+        if chunk_index == total_chunks - 1:
+            async def finalize_upload():
+                def _finalize():
+                    if os.path.exists(temp_filepath):
+                        os.rename(temp_filepath, filepath)
+                await hass.async_add_executor_job(_finalize)
+                    
+            await finalize_upload()
+            
+            # Hole die aktuelle Bilderliste aus der Config Entry
+            data = dict(target_entry.data)
+            plant_info = dict(data.get(FLOW_PLANT_INFO, {}))
+            current_images = list(plant_info.get("images", []))
+            
+            # Wenn kein Hauptbild existiert, setze dieses als Hauptbild
+            if not target_entity._attr_entity_picture:
+                breeder = target_entity._plant_info.get(ATTR_BREEDER, "Unknown")
+                target_entity._attr_entity_picture = f"/local/images/plants/{final_filename}"
+                plant_info[ATTR_ENTITY_PICTURE] = f"/local/images/plants/{final_filename}"
+            else:
+                # Füge das Bild zur Bilderliste hinzu, wenn es nicht das Entity Picture ist
+                entity_picture_filename = target_entity._attr_entity_picture.split("/")[-1]
+                if final_filename != entity_picture_filename:
+                    if final_filename not in current_images:
+                        current_images.append(final_filename)
+                        plant_info["images"] = current_images
+            
+            # Aktualisiere die Config Entry
+            data[FLOW_PLANT_INFO] = plant_info
+            hass.config_entries.async_update_entry(target_entry, data=data)
+            
+            # Aktualisiere die Entity
+            target_entity._images = current_images
+            target_entity._plant_info = plant_info
+            target_entity.async_write_ha_state()
+            
+            # Cleanup
+            if entity_id in hass.data[DOMAIN]["uploads"]:
+                del hass.data[DOMAIN]["uploads"][entity_id]
+
+        connection.send_result(msg["id"], {"success": True, "chunk_index": chunk_index})
+
+    except Exception as e:
+        _LOGGER.error("Error processing image chunk: %s", e)
+        # Bei einem Fehler lösche die temporäre Datei
+        if "uploads" in hass.data.get(DOMAIN, {}) and entity_id in hass.data[DOMAIN]["uploads"]:
+            temp_filepath = hass.data[DOMAIN]["uploads"][entity_id]["temp_filepath"]
+            async def cleanup():
+                def _cleanup():
+                    if os.path.exists(temp_filepath):
+                        os.unlink(temp_filepath)
+                    if entity_id in hass.data[DOMAIN].get("uploads", {}):
+                        del hass.data[DOMAIN]["uploads"][entity_id]
+                await hass.async_add_executor_job(_cleanup)
+                    
+            await cleanup()
+        connection.send_error(msg["id"], "upload_failed", str(e))
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "plant/delete_image",
+        vol.Required("entity_id"): str,
+        vol.Required("filename"): str,
+    }
+)
+@websocket_api.async_response
+async def ws_delete_image(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict
+) -> None:
+    """Handle image deletion via websocket."""
+    entity_id = msg["entity_id"]
+    filename = msg["filename"]
+
+    # Finde die Entity (Plant oder Cycle)
+    target_entity = None
+    target_entry = None
+    for entry_id in hass.data[DOMAIN]:
+        if ATTR_PLANT in hass.data[DOMAIN][entry_id]:
+            entity = hass.data[DOMAIN][entry_id][ATTR_PLANT]
+            if entity.entity_id == entity_id:
+                target_entity = entity
+                target_entry = hass.config_entries.async_get_entry(entry_id)
+                break
+
+    if not target_entity or not target_entry:
+        connection.send_error(msg["id"], "entity_not_found", f"Entity {entity_id} not found")
+        return
+
+    # Hole den Download-Pfad aus der Konfiguration
+    config_entry = None
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if entry.data.get("is_config", False):
+            config_entry = entry
+            break
+
+    download_path = config_entry.data[FLOW_PLANT_INFO].get(FLOW_DOWNLOAD_PATH, DEFAULT_IMAGE_PATH) if config_entry else DEFAULT_IMAGE_PATH
+
+    try:
+        # Prüfe ob es sich um das Hauptbild handelt
+        is_main_image = False
+        if target_entity._attr_entity_picture:
+            main_image_filename = target_entity._attr_entity_picture.split("/")[-1]
+            if filename == main_image_filename:
+                is_main_image = True
+                
+                # Lösche den entity_picture Pfad
+                target_entity._attr_entity_picture = None
+                
+                # Aktualisiere die Config Entry
+                data = dict(target_entry.data)
+                plant_info = dict(data.get(FLOW_PLANT_INFO, {}))
+                plant_info[ATTR_ENTITY_PICTURE] = None
+                data[FLOW_PLANT_INFO] = plant_info
+                hass.config_entries.async_update_entry(target_entry, data=data)
+                
+                # Aktualisiere die Entity
+                target_entity._plant_info = plant_info
+                target_entity.async_write_ha_state()
+
+        # Lösche die Datei
+        filepath = os.path.join(download_path, filename)
+        
+        def delete_file():
+            if os.path.exists(filepath):
+                os.unlink(filepath)
+                
+        await hass.async_add_executor_job(delete_file)
+
+        # Wenn es kein Hauptbild ist, aktualisiere die images Liste
+        if not is_main_image:
+            # Aktualisiere die Config Entry
+            data = dict(target_entry.data)
+            plant_info = dict(data.get(FLOW_PLANT_INFO, {}))
+            current_images = list(plant_info.get("images", []))
+            
+            if filename in current_images:
+                current_images.remove(filename)
+                
+                # Aktualisiere die Config Entry
+                plant_info["images"] = current_images
+                data[FLOW_PLANT_INFO] = plant_info
+                hass.config_entries.async_update_entry(target_entry, data=data)
+                
+                # Aktualisiere die Entity
+                target_entity._images = current_images
+                target_entity._plant_info = plant_info
+                target_entity.async_write_ha_state()
+
+        connection.send_result(msg["id"], {"success": True})
+
+    except Exception as e:
+        _LOGGER.error("Error deleting image: %s", e)
+        connection.send_error(msg["id"], "delete_failed", str(e))
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "plant/set_main_image",
+        vol.Required("entity_id"): str,
+        vol.Required("filename"): str,
+    }
+)
+@websocket_api.async_response
+async def ws_set_main_image(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict
+) -> None:
+    """Handle setting the main image via websocket."""
+    entity_id = msg["entity_id"]
+    filename = msg["filename"]
+
+    # Finde die Entity (Plant oder Cycle)
+    target_entity = None
+    target_entry = None
+    for entry_id in hass.data[DOMAIN]:
+        if ATTR_PLANT in hass.data[DOMAIN][entry_id]:
+            entity = hass.data[DOMAIN][entry_id][ATTR_PLANT]
+            if entity.entity_id == entity_id:
+                target_entity = entity
+                target_entry = hass.config_entries.async_get_entry(entry_id)
+                break
+
+    if not target_entity or not target_entry:
+        connection.send_error(msg["id"], "entity_not_found", f"Entity {entity_id} not found")
+        return
+
+    # Hole den Download-Pfad aus der Konfiguration
+    config_entry = None
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if entry.data.get("is_config", False):
+            config_entry = entry
+            break
+
+    download_path = config_entry.data[FLOW_PLANT_INFO].get(FLOW_DOWNLOAD_PATH, DEFAULT_IMAGE_PATH) if config_entry else DEFAULT_IMAGE_PATH
+
+    try:
+        # Prüfe ob das Bild existiert
+        filepath = os.path.join(download_path, filename)
+        if not os.path.exists(filepath):
+            connection.send_error(msg["id"], "file_not_found", f"Image {filename} not found")
+            return
+
+        # Aktualisiere die Entity
+        breeder = target_entity._plant_info.get(ATTR_BREEDER, "Unknown")
+        target_entity._attr_entity_picture = f"/local/images/plants/{filename}"
+        
+        # Aktualisiere die Config Entry
+        data = dict(target_entry.data)
+        plant_info = dict(data.get(FLOW_PLANT_INFO, {}))
+        plant_info[ATTR_ENTITY_PICTURE] = f"/local/images/plants/{filename}"
+        data[FLOW_PLANT_INFO] = plant_info
+        hass.config_entries.async_update_entry(target_entry, data=data)
+        
+        # Aktualisiere die Entity
+        target_entity._plant_info = plant_info
+        target_entity.async_write_ha_state()
+
+        connection.send_result(msg["id"], {"success": True})
+
+    except Exception as e:
+        _LOGGER.error("Error setting main image: %s", e)
+        connection.send_error(msg["id"], "set_main_image_failed", str(e))
+
 
 class PlantDevice(Entity):
     """Base device for plants"""
@@ -445,17 +803,32 @@ class PlantDevice(Entity):
         self.min_humidity = None
         self.max_dli = None
         self.min_dli = None
+       
+        # Neue Attribute ohne Unterstrich
+        self.max_water_consumption = None
+        self.min_water_consumption = None
+        self.max_fertilizer_consumption = None
+        self.min_fertilizer_consumption = None
+        self.max_power_consumption = None
+        self.min_power_consumption = None
 
         self.sensor_moisture = None
         self.sensor_temperature = None
         self.sensor_conductivity = None
         self.sensor_illuminance = None
         self.sensor_humidity = None
+        self.sensor_power_consumption = None
+        self.total_power_consumption = None
 
         self.dli = None
         self.micro_dli = None
         self.ppfd = None
         self.total_integral = None
+        self.moisture_consumption = None
+        self.total_water_consumption = None  # Füge Total Water Consumption hinzu
+        self.fertilizer_consumption = None
+        self.total_fertilizer_consumption = None  # Füge Total Fertilizer Consumption hinzu
+        self.power_consumption = None
 
         self.conductivity_status = None
         self.illuminance_status = None
@@ -463,6 +836,9 @@ class PlantDevice(Entity):
         self.temperature_status = None
         self.humidity_status = None
         self.dli_status = None
+        self.water_consumption_status = None
+        self.fertilizer_consumption_status = None
+        self.power_consumption_status = None
 
         self.flowering_duration = None
 
@@ -519,6 +895,25 @@ class PlantDevice(Entity):
 
         # Neue Property für water_capacity
         self.water_capacity = None
+
+        # Hole den kWh Preis aus dem Konfigurationsknoten
+        self._kwh_price = DEFAULT_KWH_PRICE
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            if entry.data.get("is_config", False):
+                self._kwh_price = entry.data[FLOW_PLANT_INFO].get(ATTR_KWH_PRICE, DEFAULT_KWH_PRICE)
+                break
+
+        # Neue Property für Treatment Select
+        self.treatment_select = None
+
+        # Neue Property für Health Number
+        self.health_number = None
+
+        # Neue Property für Journal
+        self.journal = None
+
+        # Initialisiere die Bilderliste
+        self._images = self._plant_info.get("images", [])
 
     @property
     def entity_category(self) -> None:
@@ -598,6 +993,21 @@ class PlantDevice(Entity):
         return self._config.options.get(FLOW_CONDUCTIVITY_TRIGGER, True)
 
     @property
+    def water_consumption_trigger(self) -> bool:
+        """Whether we will generate alarms based on water consumption"""
+        return self._config.options.get(FLOW_WATER_CONSUMPTION_TRIGGER, True)
+
+    @property
+    def fertilizer_consumption_trigger(self) -> bool:
+        """Whether we will generate alarms based on fertilizer consumption"""
+        return self._config.options.get(FLOW_FERTILIZER_CONSUMPTION_TRIGGER, True)
+
+    @property
+    def power_consumption_trigger(self) -> bool:
+        """Return if power consumption should trigger problems."""
+        return self._config.data[FLOW_PLANT_INFO].get(FLOW_POWER_CONSUMPTION_TRIGGER, True)
+
+    @property
     def breeder(self) -> str:
         """Return the breeder."""
         return self._plant_info.get(ATTR_BREEDER, "")
@@ -628,13 +1038,16 @@ class PlantDevice(Entity):
         attrs = {
             "strain": self._plant_info.get(ATTR_STRAIN, ""),
             "breeder": self._plant_info.get(ATTR_BREEDER, ""),
-            "flowering_duration": self.flowering_duration.native_value if self.flowering_duration else None,
+            "original_flowering_duration": self._plant_info.get(ATTR_ORIGINAL_FLOWERING_DURATION),
             "moisture_status": self.moisture_status,
             "temperature_status": self.temperature_status,
             "conductivity_status": self.conductivity_status,
             "illuminance_status": self.illuminance_status,
             "humidity_status": self.humidity_status,
             "dli_status": self.dli_status,
+            "water_consumption_status": self.water_consumption_status,
+            "fertilizer_consumption_status": self.fertilizer_consumption_status,
+            "power_consumption_status": self.power_consumption_status,
             "pid": self.pid,
             "sorte": self._plant_info.get("sorte", ""),
             "feminized": self._plant_info.get("feminized", ""),
@@ -651,6 +1064,7 @@ class PlantDevice(Entity):
             "yield": self._plant_info.get(ATTR_YIELD, ""),
             "notes": self._plant_info.get(ATTR_NOTES, ""),
             "website": self._plant_info.get("website", ""),
+            "images": self._images,
         }
 
         # Füge member_count für Cycles hinzu
@@ -674,7 +1088,19 @@ class PlantDevice(Entity):
             # We are not fully set up, so we just return an empty dict for now
             return {}
 
+        # Hole den Download-Pfad aus der Konfiguration und konvertiere ihn
+        config_entry = None
+        for entry in self._hass.config_entries.async_entries(DOMAIN):
+            if entry.data.get("is_config", False):
+                config_entry = entry
+                break
+
+        download_path = config_entry.data[FLOW_PLANT_INFO].get(FLOW_DOWNLOAD_PATH, DEFAULT_IMAGE_PATH) if config_entry else DEFAULT_IMAGE_PATH
+        # Konvertiere /config/www/ zu /local/
+        web_path = download_path.replace("/config/www/", "/local/")
+
         response = {
+            "path": web_path,  # Der konvertierte Pfad
             ATTR_TEMPERATURE: {
                 ATTR_MAX: self.max_temperature.state,
                 ATTR_MIN: self.min_temperature.state,
@@ -723,6 +1149,30 @@ class PlantDevice(Entity):
                 ATTR_UNIT_OF_MEASUREMENT: self.dli.unit_of_measurement,
                 ATTR_SENSOR: self.dli.entity_id,
             },
+            ATTR_WATER_CONSUMPTION: {
+                ATTR_MAX: self.max_water_consumption.state,
+                ATTR_MIN: self.min_water_consumption.state,
+                ATTR_CURRENT: self.moisture_consumption.state or STATE_UNAVAILABLE,
+                ATTR_ICON: self.moisture_consumption.icon,
+                ATTR_UNIT_OF_MEASUREMENT: self.moisture_consumption.unit_of_measurement,
+                ATTR_SENSOR: self.moisture_consumption.entity_id,
+            },
+            ATTR_FERTILIZER_CONSUMPTION: {
+                ATTR_MAX: self.max_fertilizer_consumption.state,
+                ATTR_MIN: self.min_fertilizer_consumption.state,
+                ATTR_CURRENT: self.fertilizer_consumption.state or STATE_UNAVAILABLE,
+                ATTR_ICON: self.fertilizer_consumption.icon,
+                ATTR_UNIT_OF_MEASUREMENT: self.fertilizer_consumption.unit_of_measurement,
+                ATTR_SENSOR: self.fertilizer_consumption.entity_id,
+            },
+            ATTR_POWER_CONSUMPTION: {
+                ATTR_MAX: self.max_power_consumption.state,
+                ATTR_MIN: self.min_power_consumption.state,
+                ATTR_CURRENT: self.sensor_power_consumption.state or STATE_UNAVAILABLE,
+                ATTR_ICON: self.sensor_power_consumption.icon,
+                ATTR_UNIT_OF_MEASUREMENT: self.sensor_power_consumption.unit_of_measurement,
+                ATTR_SENSOR: self.sensor_power_consumption.entity_id,
+            },
         }
 
         if self.dli.state and self.dli.state != STATE_UNKNOWN:
@@ -746,6 +1196,12 @@ class PlantDevice(Entity):
             self.min_illuminance,
             self.min_moisture,
             self.min_temperature,
+            self.max_water_consumption,
+            self.min_water_consumption,
+            self.max_fertilizer_consumption,
+            self.min_fertilizer_consumption,
+            self.max_power_consumption,
+            self.min_power_consumption,
         ]
 
     @property
@@ -757,6 +1213,7 @@ class PlantDevice(Entity):
             self.sensor_illuminance,
             self.sensor_moisture,
             self.sensor_temperature,
+            self.sensor_power_consumption,
         ]
 
     @property
@@ -795,8 +1252,14 @@ class PlantDevice(Entity):
         min_humidity: Entity | None,
         max_dli: Entity | None,
         min_dli: Entity | None,
+        max_water_consumption: Entity | None,
+        min_water_consumption: Entity | None,
+        max_fertilizer_consumption: Entity | None,
+        min_fertilizer_consumption: Entity | None,
+        max_power_consumption: Entity | None,
+        min_power_consumption: Entity | None,
     ) -> None:
-        """Add the threshold entities"""
+        """Add threshold entities to the plant."""
         self.max_moisture = max_moisture
         self.min_moisture = min_moisture
         self.max_temperature = max_temperature
@@ -809,6 +1272,12 @@ class PlantDevice(Entity):
         self.min_humidity = min_humidity
         self.max_dli = max_dli
         self.min_dli = min_dli
+        self.max_water_consumption = max_water_consumption
+        self.min_water_consumption = min_water_consumption
+        self.max_fertilizer_consumption = max_fertilizer_consumption
+        self.min_fertilizer_consumption = min_fertilizer_consumption
+        self.max_power_consumption = max_power_consumption
+        self.min_power_consumption = min_power_consumption
 
     def add_sensors(
         self,
@@ -817,6 +1286,7 @@ class PlantDevice(Entity):
         conductivity: Entity | None,
         illuminance: Entity | None,
         humidity: Entity | None,
+        power_consumption: Entity | None,
     ) -> None:
         """Add the sensor entities"""
         self.sensor_moisture = moisture
@@ -824,6 +1294,7 @@ class PlantDevice(Entity):
         self.sensor_conductivity = conductivity
         self.sensor_illuminance = illuminance
         self.sensor_humidity = humidity
+        self.sensor_power_consumption = power_consumption
 
     def add_dli(
         self,
@@ -945,6 +1416,54 @@ class PlantDevice(Entity):
                     else:
                         self.dli_status = STATE_OK
 
+            # Überprüfe Wasser-Verbrauch
+            if self.moisture_consumption is not None:
+                water_consumption = self.moisture_consumption.state
+                if water_consumption is not None and water_consumption != STATE_UNAVAILABLE and water_consumption != STATE_UNKNOWN:
+                    known_state = True
+                    if float(water_consumption) < float(self.min_water_consumption.state):
+                        self.water_consumption_status = STATE_LOW
+                        if self.water_consumption_trigger:
+                            new_state = STATE_PROBLEM
+                    elif float(water_consumption) > float(self.max_water_consumption.state):
+                        self.water_consumption_status = STATE_HIGH
+                        if self.water_consumption_trigger:
+                            new_state = STATE_PROBLEM
+                    else:
+                        self.water_consumption_status = STATE_OK
+
+            # Überprüfe Dünger-Verbrauch
+            if self.fertilizer_consumption is not None:
+                fertilizer_consumption = self.fertilizer_consumption.state
+                if fertilizer_consumption is not None and fertilizer_consumption != STATE_UNAVAILABLE and fertilizer_consumption != STATE_UNKNOWN:
+                    known_state = True
+                    if float(fertilizer_consumption) < float(self.min_fertilizer_consumption.state):
+                        self.fertilizer_consumption_status = STATE_LOW
+                        if self.fertilizer_consumption_trigger:
+                            new_state = STATE_PROBLEM
+                    elif float(fertilizer_consumption) > float(self.max_fertilizer_consumption.state):
+                        self.fertilizer_consumption_status = STATE_HIGH
+                        if self.fertilizer_consumption_trigger:
+                            new_state = STATE_PROBLEM
+                    else:
+                        self.fertilizer_consumption_status = STATE_OK
+
+            # Überprüfe Power Consumption
+            if self.sensor_power_consumption is not None:
+                power_consumption = self.sensor_power_consumption.state
+                if power_consumption is not None and power_consumption != STATE_UNAVAILABLE and power_consumption != STATE_UNKNOWN:
+                    known_state = True
+                    if float(power_consumption) < float(self.min_power_consumption.state):
+                        self.power_consumption_status = STATE_LOW
+                        if self.power_consumption_trigger:
+                            new_state = STATE_PROBLEM
+                    elif float(power_consumption) > float(self.max_power_consumption.state):
+                        self.power_consumption_status = STATE_HIGH
+                        if self.power_consumption_trigger:
+                            new_state = STATE_PROBLEM
+                    else:
+                        self.power_consumption_status = STATE_OK
+
         else:
             # Plant-Update-Logik
             if self.sensor_moisture is not None:
@@ -1008,6 +1527,21 @@ class PlantDevice(Entity):
                     else:
                         self.illuminance_status = STATE_OK
 
+            if self.sensor_humidity is not None:
+                humidity = self.sensor_humidity.state
+                if humidity is not None and humidity != STATE_UNAVAILABLE and humidity != STATE_UNKNOWN:
+                    known_state = True
+                    if float(humidity) < float(self.min_humidity.state):
+                        self.humidity_status = STATE_LOW
+                        if self.humidity_trigger:
+                            new_state = STATE_PROBLEM
+                    elif float(humidity) > float(self.max_humidity.state):
+                        self.humidity_status = STATE_HIGH
+                        if self.humidity_trigger:
+                            new_state = STATE_PROBLEM
+                    else:
+                        self.humidity_status = STATE_OK
+
             if self.dli is not None:
                 dli = self.dli.state
                 if dli is not None and dli != STATE_UNAVAILABLE and dli != STATE_UNKNOWN:
@@ -1022,6 +1556,54 @@ class PlantDevice(Entity):
                             new_state = STATE_PROBLEM
                     else:
                         self.dli_status = STATE_OK
+
+            # Überprüfe Wasser-Verbrauch
+            if self.moisture_consumption is not None:
+                water_consumption = self.moisture_consumption.state
+                if water_consumption is not None and water_consumption != STATE_UNAVAILABLE and water_consumption != STATE_UNKNOWN:
+                    known_state = True
+                    if float(water_consumption) < float(self.min_water_consumption.state):
+                        self.water_consumption_status = STATE_LOW
+                        if self.water_consumption_trigger:
+                            new_state = STATE_PROBLEM
+                    elif float(water_consumption) > float(self.max_water_consumption.state):
+                        self.water_consumption_status = STATE_HIGH
+                        if self.water_consumption_trigger:
+                            new_state = STATE_PROBLEM
+                    else:
+                        self.water_consumption_status = STATE_OK
+
+            # Überprüfe Dünger-Verbrauch
+            if self.fertilizer_consumption is not None:
+                fertilizer_consumption = self.fertilizer_consumption.state
+                if fertilizer_consumption is not None and fertilizer_consumption != STATE_UNAVAILABLE and fertilizer_consumption != STATE_UNKNOWN:
+                    known_state = True
+                    if float(fertilizer_consumption) < float(self.min_fertilizer_consumption.state):
+                        self.fertilizer_consumption_status = STATE_LOW
+                        if self.fertilizer_consumption_trigger:
+                            new_state = STATE_PROBLEM
+                    elif float(fertilizer_consumption) > float(self.max_fertilizer_consumption.state):
+                        self.fertilizer_consumption_status = STATE_HIGH
+                        if self.fertilizer_consumption_trigger:
+                            new_state = STATE_PROBLEM
+                    else:
+                        self.fertilizer_consumption_status = STATE_OK
+
+            # Überprüfe Power Consumption
+            if self.sensor_power_consumption is not None:
+                power_consumption = self.sensor_power_consumption.state
+                if power_consumption is not None and power_consumption != STATE_UNAVAILABLE and power_consumption != STATE_UNKNOWN:
+                    known_state = True
+                    if float(power_consumption) < float(self.min_power_consumption.state):
+                        self.power_consumption_status = STATE_LOW
+                        if self.power_consumption_trigger:
+                            new_state = STATE_PROBLEM
+                    elif float(power_consumption) > float(self.max_power_consumption.state):
+                        self.power_consumption_status = STATE_HIGH
+                        if self.power_consumption_trigger:
+                            new_state = STATE_PROBLEM
+                    else:
+                        self.power_consumption_status = STATE_OK
 
         if not known_state:
             new_state = STATE_UNKNOWN
@@ -1122,7 +1704,11 @@ class PlantDevice(Entity):
             'dli': [],
             'total_integral': [],
             'moisture_consumption': [],
-            'fertilizer_consumption': []
+            'total_water_consumption': [],  # Füge Total Water hinzu
+            'fertilizer_consumption': [],
+            'total_fertilizer_consumption': [],  # Füge Total Fertilizer hinzu
+            'power_consumption': [],
+            'total_power_consumption': []  # Füge Total Power hinzu
         }
 
         for plant_id in self._member_plants:
@@ -1149,7 +1735,11 @@ class PlantDevice(Entity):
                 'dli': plant.dli,
                 'total_integral': plant.total_integral,
                 'moisture_consumption': plant.moisture_consumption,
+                'total_water_consumption': plant.total_water_consumption,  # Füge Total Water hinzu
                 'fertilizer_consumption': plant.fertilizer_consumption,
+                'total_fertilizer_consumption': plant.total_fertilizer_consumption,  # Füge Total Fertilizer hinzu
+                'power_consumption': plant.sensor_power_consumption,
+                'total_power_consumption': plant.total_power_consumption  # Füge Total Power hinzu
             }
 
             for sensor_type, sensor in sensors_to_check.items():
@@ -1157,12 +1747,12 @@ class PlantDevice(Entity):
                     try:
                         # Für DLI/PPFD/total_integral/consumption speichern wir auch den Sensor selbst
                         if sensor_type in ['ppfd', 'dli', 'total_integral', 
-                                         'moisture_consumption', 'fertilizer_consumption']:
+                                         'moisture_consumption', 'total_water_consumption',
+                                         'fertilizer_consumption', 'total_fertilizer_consumption',
+                                         'power_consumption', 'total_power_consumption']:
                             sensor_values[sensor_type].append((float(sensor.state), sensor))
                         else:
                             sensor_values[sensor_type].append(float(sensor.state))
-                        _LOGGER.debug("Added %s value %s from plant %s", 
-                                    sensor_type, sensor.state, plant_id)
                     except (TypeError, ValueError) as ex:
                         _LOGGER.debug("Could not convert %s value %s: %s",
                                     sensor_type, sensor.state, ex)
@@ -1174,40 +1764,46 @@ class PlantDevice(Entity):
                 aggregation_method = self._plant_info.get('aggregations', {}).get(
                     sensor_type, DEFAULT_AGGREGATIONS.get(sensor_type, AGGREGATION_MEDIAN)
                 )
-                
+
                 # Spezielle Behandlung für Sensoren mit Original-Berechnung
                 if sensor_type in ['ppfd', 'dli', 'total_integral', 
-                                 'moisture_consumption', 'fertilizer_consumption'] and aggregation_method == AGGREGATION_ORIGINAL:
+                                 'moisture_consumption', 'total_water_consumption',
+                                 'fertilizer_consumption', 'total_fertilizer_consumption',
+                                 'power_consumption', 'total_power_consumption'] and aggregation_method == AGGREGATION_ORIGINAL:
                     # Bei Original-Berechnung nehmen wir den ersten gültigen Sensor
                     if values:
                         self._median_sensors[sensor_type] = values[0] if isinstance(values[0], (int, float)) else values[0][0]
-                        _LOGGER.debug("Using original calculation for %s from first valid sensor", sensor_type)
-                    continue
 
                 # Für alle anderen Fälle extrahieren wir nur die Werte
                 if sensor_type in ['ppfd', 'dli', 'total_integral', 
-                                 'moisture_consumption', 'fertilizer_consumption']:
+                                 'moisture_consumption', 'total_water_consumption',
+                                 'fertilizer_consumption', 'total_fertilizer_consumption',
+                                 'power_consumption', 'total_power_consumption']:
                     values = [v[0] for v in values]  # Extrahiere nur die Werte, nicht die Sensoren
 
                 if aggregation_method == AGGREGATION_MEAN:
-                    self._median_sensors[sensor_type] = sum(values) / len(values)
+                    value = sum(values) / len(values)
                 elif aggregation_method == AGGREGATION_MIN:
-                    self._median_sensors[sensor_type] = min(values)
+                    value = min(values)
                 elif aggregation_method == AGGREGATION_MAX:
-                    self._median_sensors[sensor_type] = max(values)
+                    value = max(values)
                 else:  # AGGREGATION_MEDIAN
                     sorted_values = sorted(values)
                     n = len(sorted_values)
                     if n % 2 == 0:
-                        self._median_sensors[sensor_type] = (sorted_values[n//2 - 1] + sorted_values[n//2]) / 2
+                        value = (sorted_values[n//2 - 1] + sorted_values[n//2]) / 2
                     else:
-                        self._median_sensors[sensor_type] = sorted_values[n//2]
+                        value = sorted_values[n//2]
 
-                _LOGGER.debug("%s %s for cycle %s: %s", 
-                             aggregation_method, sensor_type, 
-                             self.entity_id, self._median_sensors[sensor_type])
-            else:
-                self._median_sensors[sensor_type] = None
+                # Runde die Werte entsprechend ihres Typs
+                if sensor_type == "total_integral":
+                    self._median_sensors[sensor_type] = round(value, 6)  # 6 Nachkommastellen wie bei Plant
+                elif sensor_type in ["ppfd", "dli"]:
+                    self._median_sensors[sensor_type] = round(value, 3)  # 3 Nachkommastellen
+                elif sensor_type in ["temperature", "moisture", "humidity", "moisture_consumption"]:
+                    self._median_sensors[sensor_type] = round(value, 1)  # 1 Nachkommastelle
+                else:  # conductivity, illuminance, fertilizer_consumption
+                    self._median_sensors[sensor_type] = round(value)  # Keine Nachkommastellen
 
     def _update_cycle_attributes(self) -> None:
         """Update cycle attributes based on member plants."""
@@ -1288,6 +1884,18 @@ class PlantDevice(Entity):
         """Add water capacity entity."""
         self.water_capacity = water_capacity
 
+    def add_treatment_select(self, treatment_select: Entity) -> None:
+        """Add the treatment select entity."""
+        self.treatment_select = treatment_select
+
+    def add_health_number(self, health_number: Entity) -> None:
+        """Add the health number entity."""
+        self.health_number = health_number
+
+    def add_journal(self, journal: Entity) -> None:
+        """Add the journal text entity."""
+        self.journal = journal
+
     @property
     def name(self) -> str:
         """Return the name with emojis for the device."""
@@ -1312,6 +1920,23 @@ class PlantDevice(Entity):
     def has_entity_name(self) -> bool:
         """Return False to use raw entity names without device prefix."""
         return False
+
+    def add_power_consumption_sensors(self, current, total):
+        """Add power consumption sensors."""
+        self.sensor_power_consumption = current
+        self.total_power_consumption = total
+
+    @property
+    def kwh_price(self) -> float:
+        """Return the current kWh price."""
+        return self._kwh_price
+
+    def update_kwh_price(self, new_price: float) -> None:
+        """Update the kWh price."""
+        self._kwh_price = new_price
+        # Aktualisiere den Energiekosten-Sensor wenn vorhanden
+        if hasattr(self, 'energy_cost') and self.energy_cost:
+            self.energy_cost.async_schedule_update_ha_state(True)
 
 
 async def async_remove_config_entry_device(

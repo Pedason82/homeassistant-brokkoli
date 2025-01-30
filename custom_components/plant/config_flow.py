@@ -14,6 +14,7 @@ import voluptuous as vol
 from homeassistant import config_entries, data_entry_flow
 from homeassistant.components.sensor import (
     SensorDeviceClass,
+    SensorStateClass,
 )
 from homeassistant.const import (
     ATTR_DEVICE_CLASS,
@@ -64,6 +65,12 @@ from .const import (
     CONF_MIN_ILLUMINANCE,
     CONF_MIN_MOISTURE,
     CONF_MIN_TEMPERATURE,
+    CONF_MIN_WATER_CONSUMPTION,
+    CONF_MIN_FERTILIZER_CONSUMPTION,
+    CONF_MAX_WATER_CONSUMPTION,
+    CONF_MAX_FERTILIZER_CONSUMPTION,
+    CONF_MIN_POWER_CONSUMPTION,
+    CONF_MAX_POWER_CONSUMPTION,
     DATA_SOURCE,
     DATA_SOURCE_PLANTBOOK,
     DOMAIN,
@@ -84,9 +91,13 @@ from .const import (
     FLOW_SENSOR_ILLUMINANCE,
     FLOW_SENSOR_MOISTURE,
     FLOW_SENSOR_TEMPERATURE,
+    FLOW_SENSOR_POWER_CONSUMPTION,
     FLOW_STRING_DESCRIPTION,
     FLOW_TEMP_UNIT,
     FLOW_TEMPERATURE_TRIGGER,
+    FLOW_WATER_CONSUMPTION_TRIGGER,
+    FLOW_FERTILIZER_CONSUMPTION_TRIGGER,
+    FLOW_POWER_CONSUMPTION_TRIGGER,
     OPB_DISPLAY_PID,
     DEFAULT_GROWTH_PHASE,
     GROWTH_PHASES,
@@ -131,6 +142,17 @@ from .const import (
     CONF_DEFAULT_MIN_CONDUCTIVITY,
     CONF_DEFAULT_MAX_HUMIDITY,
     CONF_DEFAULT_MIN_HUMIDITY,
+    ATTR_ORIGINAL_FLOWERING_DURATION,
+    CONF_DEFAULT_MAX_WATER_CONSUMPTION,
+    CONF_DEFAULT_MIN_WATER_CONSUMPTION,
+    CONF_DEFAULT_MAX_FERTILIZER_CONSUMPTION,
+    CONF_DEFAULT_MIN_FERTILIZER_CONSUMPTION,
+    CONF_DEFAULT_MAX_POWER_CONSUMPTION,
+    CONF_DEFAULT_MIN_POWER_CONSUMPTION,
+    ATTR_KWH_PRICE,
+    DEFAULT_KWH_PRICE,
+    FLOW_DOWNLOAD_PATH,
+    DEFAULT_IMAGE_PATH,
 )
 from .plant_helpers import PlantHelper
 
@@ -194,6 +216,14 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_DEFAULT_MIN_CONDUCTIVITY: 500,
                     CONF_DEFAULT_MAX_HUMIDITY: 60,
                     CONF_DEFAULT_MIN_HUMIDITY: 20,
+                    CONF_DEFAULT_MAX_WATER_CONSUMPTION: 2.0,
+                    CONF_DEFAULT_MIN_WATER_CONSUMPTION: 0.1,
+                    CONF_DEFAULT_MAX_FERTILIZER_CONSUMPTION: 2000,
+                    CONF_DEFAULT_MIN_FERTILIZER_CONSUMPTION: 500,
+                    CONF_DEFAULT_MAX_POWER_CONSUMPTION: 10.0,
+                    CONF_DEFAULT_MIN_POWER_CONSUMPTION: 0.0,
+                    # Füge kWh Preis hinzu
+                    ATTR_KWH_PRICE: DEFAULT_KWH_PRICE,
                     # Default Icon für Cycle
 
                     # Default Aggregationsmethoden für Cycle
@@ -209,8 +239,17 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     "default_ppfd_aggregation": DEFAULT_AGGREGATIONS['ppfd'],
                     "default_dli_aggregation": DEFAULT_AGGREGATIONS['dli'],
                     "default_total_integral_aggregation": DEFAULT_AGGREGATIONS['total_integral'],
-                    "default_moisture_consumption_aggregation": AGGREGATION_MEAN,
-                    "default_fertilizer_consumption_aggregation": AGGREGATION_MEAN,
+                    "default_moisture_consumption_aggregation": DEFAULT_AGGREGATIONS['moisture_consumption'],
+                    "default_fertilizer_consumption_aggregation": DEFAULT_AGGREGATIONS['fertilizer_consumption'],
+                    "default_total_water_consumption_aggregation": DEFAULT_AGGREGATIONS['total_water_consumption'],
+                    "default_total_fertilizer_consumption_aggregation": DEFAULT_AGGREGATIONS['total_fertilizer_consumption'],
+                    "default_power_consumption_aggregation": DEFAULT_AGGREGATIONS['power_consumption'],
+                    # Füge Download-Pfad für Bilder hinzu
+                    FLOW_DOWNLOAD_PATH: DEFAULT_IMAGE_PATH,
+                    "difficulty": "",
+                    "yield": "",
+                    "notes": "",
+                    "images": [],  # Leeres Array für Bilder
                 },
                 # Flag um anzuzeigen, dass dies ein Konfigurationsknoten ist
                 "is_config": True
@@ -274,8 +313,12 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     'ppfd': user_input.get('ppfd_aggregation', config_data.get("default_ppfd_aggregation", DEFAULT_AGGREGATIONS['ppfd'])),
                     'dli': user_input.get('dli_aggregation', config_data.get("default_dli_aggregation", DEFAULT_AGGREGATIONS['dli'])),
                     'total_integral': user_input.get('total_integral_aggregation', config_data.get("default_total_integral_aggregation", DEFAULT_AGGREGATIONS['total_integral'])),
-                    'moisture_consumption': user_input.get('moisture_consumption_aggregation', config_data.get("default_moisture_consumption_aggregation", AGGREGATION_MEAN)),
-                    'fertilizer_consumption': user_input.get('fertilizer_consumption_aggregation', config_data.get("default_fertilizer_consumption_aggregation", AGGREGATION_MEAN)),
+                    'moisture_consumption': user_input.get('moisture_consumption_aggregation', config_data.get("default_moisture_consumption_aggregation", DEFAULT_AGGREGATIONS['moisture_consumption'])),
+                    'fertilizer_consumption': user_input.get('fertilizer_consumption_aggregation', config_data.get("default_fertilizer_consumption_aggregation", DEFAULT_AGGREGATIONS['fertilizer_consumption'])),
+                    'total_water_consumption': user_input.get('total_water_consumption_aggregation', config_data.get("default_total_water_consumption_aggregation", DEFAULT_AGGREGATIONS['total_water_consumption'])),
+                    'total_fertilizer_consumption': user_input.get('total_fertilizer_consumption_aggregation', config_data.get("default_total_fertilizer_consumption_aggregation", DEFAULT_AGGREGATIONS['total_fertilizer_consumption'])),
+                    'power_consumption': user_input.get('power_consumption_aggregation', config_data.get("default_power_consumption_aggregation", DEFAULT_AGGREGATIONS['power_consumption'])),
+                    'total_power_consumption': user_input.get('total_power_consumption_aggregation', config_data.get("default_total_power_consumption_aggregation", DEFAULT_AGGREGATIONS['total_power_consumption'])),
                 }
             }
             
@@ -346,9 +389,17 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         default=config_data.get("default_total_integral_aggregation", DEFAULT_AGGREGATIONS['total_integral'])): vol.In(AGGREGATION_METHODS_EXTENDED),
             # Neue Aggregationen für die Diagnosesensoren
             vol.Optional("moisture_consumption_aggregation",
-                        default=config_data.get("default_moisture_consumption_aggregation", AGGREGATION_MEAN)): vol.In(AGGREGATION_METHODS_EXTENDED),
+                        default=config_data.get("default_moisture_consumption_aggregation", DEFAULT_AGGREGATIONS['moisture_consumption'])): vol.In(AGGREGATION_METHODS_EXTENDED),
             vol.Optional("fertilizer_consumption_aggregation",
-                        default=config_data.get("default_fertilizer_consumption_aggregation", AGGREGATION_MEAN)): vol.In(AGGREGATION_METHODS_EXTENDED)
+                        default=config_data.get("default_fertilizer_consumption_aggregation", DEFAULT_AGGREGATIONS['fertilizer_consumption'])): vol.In(AGGREGATION_METHODS_EXTENDED),
+            vol.Optional("total_water_consumption_aggregation",
+                        default=config_data.get("default_total_water_consumption_aggregation", DEFAULT_AGGREGATIONS['total_water_consumption'])): vol.In(AGGREGATION_METHODS_EXTENDED),
+            vol.Optional("total_fertilizer_consumption_aggregation",
+                        default=config_data.get("default_total_fertilizer_consumption_aggregation", DEFAULT_AGGREGATIONS['total_fertilizer_consumption'])): vol.In(AGGREGATION_METHODS_EXTENDED),
+            vol.Optional("power_consumption_aggregation",
+                        default=config_data.get("default_power_consumption_aggregation", DEFAULT_AGGREGATIONS['power_consumption'])): vol.In(AGGREGATION_METHODS),
+            vol.Optional("total_power_consumption_aggregation",
+                        default=config_data.get("default_total_power_consumption_aggregation", DEFAULT_AGGREGATIONS['total_power_consumption'])): vol.In(AGGREGATION_METHODS_EXTENDED),
         }
 
         return self.async_show_form(
@@ -387,6 +438,13 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ATTR_NORMALIZE_MOISTURE: user_input.get(ATTR_NORMALIZE_MOISTURE, False),
                 ATTR_NORMALIZE_WINDOW: user_input.get(ATTR_NORMALIZE_WINDOW, DEFAULT_NORMALIZE_WINDOW),
                 ATTR_NORMALIZE_PERCENTILE: user_input.get(ATTR_NORMALIZE_PERCENTILE, DEFAULT_NORMALIZE_PERCENTILE),
+                # Füge die Sensorzuweisungen hinzu
+                FLOW_SENSOR_TEMPERATURE: user_input.get(FLOW_SENSOR_TEMPERATURE),
+                FLOW_SENSOR_MOISTURE: user_input.get(FLOW_SENSOR_MOISTURE),
+                FLOW_SENSOR_CONDUCTIVITY: user_input.get(FLOW_SENSOR_CONDUCTIVITY),
+                FLOW_SENSOR_ILLUMINANCE: user_input.get(FLOW_SENSOR_ILLUMINANCE),
+                FLOW_SENSOR_HUMIDITY: user_input.get(FLOW_SENSOR_HUMIDITY),
+                FLOW_SENSOR_POWER_CONSUMPTION: user_input.get(FLOW_SENSOR_POWER_CONSUMPTION),  # Wird jetzt für Total Power Consumption verwendet
             }
 
             plant_helper = PlantHelper(hass=self.hass)
@@ -468,6 +526,16 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     }
                 }
             ),
+            vol.Optional(FLOW_SENSOR_POWER_CONSUMPTION, description={
+                "name": "Total Power Consumption Sensor"
+            }): selector(
+                {
+                    ATTR_ENTITY: {
+                        ATTR_DEVICE_CLASS: SensorDeviceClass.ENERGY,
+                        ATTR_DOMAIN: DOMAIN_SENSOR,
+                    }
+                }
+            ),
             
             vol.Optional(ATTR_NORMALIZE_MOISTURE, default=config_data.get("default_normalize_moisture")): cv.boolean,
             vol.Optional(ATTR_NORMALIZE_WINDOW, default=config_data.get("default_normalize_window")): cv.positive_int,
@@ -519,6 +587,12 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_DEFAULT_MIN_CONDUCTIVITY: 500,
                 CONF_DEFAULT_MAX_HUMIDITY: 60,
                 CONF_DEFAULT_MIN_HUMIDITY: 20,
+                CONF_DEFAULT_MAX_WATER_CONSUMPTION: 2.0,
+                CONF_DEFAULT_MIN_WATER_CONSUMPTION: 0.1,
+                CONF_DEFAULT_MAX_FERTILIZER_CONSUMPTION: 2000,
+                CONF_DEFAULT_MIN_FERTILIZER_CONSUMPTION: 500,
+                CONF_DEFAULT_MAX_POWER_CONSUMPTION: 10.0,
+                CONF_DEFAULT_MIN_POWER_CONSUMPTION: 0.0,
             }
 
         if user_input is not None:
@@ -548,6 +622,12 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_MIN_CONDUCTIVITY,
                         CONF_MAX_HUMIDITY,
                         CONF_MIN_HUMIDITY,
+                        CONF_MAX_WATER_CONSUMPTION,
+                        CONF_MIN_WATER_CONSUMPTION,
+                        CONF_MAX_FERTILIZER_CONSUMPTION,
+                        CONF_MIN_FERTILIZER_CONSUMPTION,
+                        CONF_MAX_POWER_CONSUMPTION,
+                        CONF_MIN_POWER_CONSUMPTION,
                     ]:
                         self.plant_info[ATTR_LIMITS][key] = user_input[key]
 
@@ -561,9 +641,13 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     self.plant_info[ATTR_ENTITY_PICTURE] = user_input[ATTR_ENTITY_PICTURE]
                 if ATTR_FLOWERING_DURATION in user_input:
                     try:
-                        self.plant_info[ATTR_FLOWERING_DURATION] = int(user_input[ATTR_FLOWERING_DURATION])
+                        duration = int(user_input[ATTR_FLOWERING_DURATION])
+                        self.plant_info[ATTR_FLOWERING_DURATION] = duration
+                        # Setze auch original_flowering_duration wenn der User den Wert manuell ändert
+                        self.plant_info[ATTR_ORIGINAL_FLOWERING_DURATION] = duration
                     except (ValueError, TypeError):
                         self.plant_info[ATTR_FLOWERING_DURATION] = 0
+                        self.plant_info[ATTR_ORIGINAL_FLOWERING_DURATION] = 0
 
                 # Speichere alle zusätzlichen Attribute
                 for attr in ["pid", "sorte", "feminized", "timestamp", 
@@ -727,6 +811,12 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         data_schema[vol.Optional(CONF_MIN_CONDUCTIVITY, default=int(config_data.get(CONF_DEFAULT_MIN_CONDUCTIVITY, 500)))] = int
         data_schema[vol.Optional(CONF_MAX_HUMIDITY, default=int(config_data.get(CONF_DEFAULT_MAX_HUMIDITY, 60)))] = int
         data_schema[vol.Optional(CONF_MIN_HUMIDITY, default=int(config_data.get(CONF_DEFAULT_MIN_HUMIDITY, 20)))] = int
+        data_schema[vol.Optional(CONF_MAX_WATER_CONSUMPTION, default=float(config_data.get(CONF_DEFAULT_MAX_WATER_CONSUMPTION, 2.0)))] = cv.positive_float
+        data_schema[vol.Optional(CONF_MIN_WATER_CONSUMPTION, default=float(config_data.get(CONF_DEFAULT_MIN_WATER_CONSUMPTION, 0.1)))] = cv.positive_float
+        data_schema[vol.Optional(CONF_MAX_FERTILIZER_CONSUMPTION, default=int(config_data.get(CONF_DEFAULT_MAX_FERTILIZER_CONSUMPTION, 2000)))] = int
+        data_schema[vol.Optional(CONF_MIN_FERTILIZER_CONSUMPTION, default=int(config_data.get(CONF_DEFAULT_MIN_FERTILIZER_CONSUMPTION, 500)))] = int
+        data_schema[vol.Optional(CONF_MAX_POWER_CONSUMPTION, default=float(config_data.get(CONF_DEFAULT_MAX_POWER_CONSUMPTION, 10.0)))] = cv.positive_float
+        data_schema[vol.Optional(CONF_MIN_POWER_CONSUMPTION, default=float(config_data.get(CONF_DEFAULT_MIN_POWER_CONSUMPTION, 0.0)))] = cv.positive_float
         
         # Für das Eingabefeld den originalen Pfad verwenden
         data_schema[vol.Optional(ATTR_ENTITY_PICTURE, description={"suggested_value": entity_picture})] = str
@@ -837,6 +927,12 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_DEFAULT_MIN_CONDUCTIVITY: CONF_DEFAULT_MIN_CONDUCTIVITY,
                     CONF_DEFAULT_MAX_HUMIDITY: CONF_DEFAULT_MAX_HUMIDITY,
                     CONF_DEFAULT_MIN_HUMIDITY: CONF_DEFAULT_MIN_HUMIDITY,
+                    CONF_DEFAULT_MAX_WATER_CONSUMPTION: CONF_DEFAULT_MAX_WATER_CONSUMPTION,
+                    CONF_DEFAULT_MIN_WATER_CONSUMPTION: CONF_DEFAULT_MIN_WATER_CONSUMPTION,
+                    CONF_DEFAULT_MAX_FERTILIZER_CONSUMPTION: CONF_DEFAULT_MAX_FERTILIZER_CONSUMPTION,
+                    CONF_DEFAULT_MIN_FERTILIZER_CONSUMPTION: CONF_DEFAULT_MIN_FERTILIZER_CONSUMPTION,
+                    CONF_DEFAULT_MAX_POWER_CONSUMPTION: CONF_DEFAULT_MAX_POWER_CONSUMPTION,
+                    CONF_DEFAULT_MIN_POWER_CONSUMPTION: CONF_DEFAULT_MIN_POWER_CONSUMPTION,
                     # Cycle-spezifische Defaults
                     "default_cycle_icon": "default_cycle_icon",
                     "default_growth_phase_aggregation": "default_growth_phase_aggregation",
@@ -853,6 +949,11 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     "default_total_integral_aggregation": "default_total_integral_aggregation",
                     "default_moisture_consumption_aggregation": "default_moisture_consumption_aggregation",
                     "default_fertilizer_consumption_aggregation": "default_fertilizer_consumption_aggregation",
+                    "default_total_water_consumption_aggregation": "default_total_water_consumption_aggregation",
+                    "default_total_fertilizer_consumption_aggregation": "default_total_fertilizer_consumption_aggregation",
+                    "default_power_consumption_aggregation": "default_power_consumption_aggregation",
+                    # Füge Download-Pfad hinzu
+                    FLOW_DOWNLOAD_PATH: FLOW_DOWNLOAD_PATH,
                 }
                 
                 for default_key, limit_key in default_fields.items():
@@ -882,6 +983,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     FLOW_SENSOR_CONDUCTIVITY: self.plant.sensor_conductivity,
                     FLOW_SENSOR_ILLUMINANCE: self.plant.sensor_illuminance,
                     FLOW_SENSOR_HUMIDITY: self.plant.sensor_humidity,
+                    FLOW_SENSOR_POWER_CONSUMPTION: self.plant.sensor_power_consumption,
                 }
                 
                 for sensor_key, current_sensor in sensor_mappings.items():
@@ -947,6 +1049,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     user_input[ATTR_ENTITY_PICTURE] = ""
                 if OPB_DISPLAY_PID in user_input and not re.match(r"\w+", user_input[OPB_DISPLAY_PID]):
                     user_input[OPB_DISPLAY_PID] = ""
+
+                if defaults_changed:
+                    self.hass.config_entries.async_update_entry(self.entry, data=data)
 
                 return self.async_create_entry(title="", data=user_input)
 
@@ -1021,6 +1126,30 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MIN_HUMIDITY, 20)
                 ): int,
                 vol.Optional(
+                    CONF_DEFAULT_MAX_WATER_CONSUMPTION,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MAX_WATER_CONSUMPTION, 2.0)
+                ): cv.positive_float,
+                vol.Optional(
+                    CONF_DEFAULT_MIN_WATER_CONSUMPTION,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MIN_WATER_CONSUMPTION, 0.1)
+                ): cv.positive_float,
+                vol.Optional(
+                    CONF_DEFAULT_MAX_FERTILIZER_CONSUMPTION,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MAX_FERTILIZER_CONSUMPTION, 2000)
+                ): int,
+                vol.Optional(
+                    CONF_DEFAULT_MIN_FERTILIZER_CONSUMPTION,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MIN_FERTILIZER_CONSUMPTION, 500)
+                ): int,
+                vol.Optional(
+                    CONF_DEFAULT_MAX_POWER_CONSUMPTION,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MAX_POWER_CONSUMPTION, 10.0)
+                ): cv.positive_float,
+                vol.Optional(
+                    CONF_DEFAULT_MIN_POWER_CONSUMPTION,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(CONF_DEFAULT_MIN_POWER_CONSUMPTION, 0.0)
+                ): cv.positive_float,
+                vol.Optional(
                     "default_normalize_moisture",
                     default=self.entry.data[FLOW_PLANT_INFO].get("default_normalize_moisture", False)
                 ): cv.boolean,
@@ -1073,12 +1202,16 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     default=self.entry.data[FLOW_PLANT_INFO].get("default_humidity_aggregation", DEFAULT_AGGREGATIONS['humidity'])
                 ): vol.In(AGGREGATION_METHODS),
                 vol.Optional(
-                    "default_ppfd_aggregation",
-                    default=self.entry.data[FLOW_PLANT_INFO].get("default_ppfd_aggregation", DEFAULT_AGGREGATIONS['ppfd'])
-                ): vol.In(AGGREGATION_METHODS_EXTENDED),
-                vol.Optional(
                     "default_dli_aggregation",
                     default=self.entry.data[FLOW_PLANT_INFO].get("default_dli_aggregation", DEFAULT_AGGREGATIONS['dli'])
+                ): vol.In(AGGREGATION_METHODS_EXTENDED),
+                vol.Optional(
+                    "default_power_consumption_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_power_consumption_aggregation", DEFAULT_AGGREGATIONS['power_consumption'])
+                ): vol.In(AGGREGATION_METHODS_EXTENDED),     
+                vol.Optional(
+                    "default_ppfd_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_ppfd_aggregation", DEFAULT_AGGREGATIONS['ppfd'])
                 ): vol.In(AGGREGATION_METHODS_EXTENDED),
                 vol.Optional(
                     "default_total_integral_aggregation",
@@ -1092,6 +1225,22 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     "default_fertilizer_consumption_aggregation",
                     default=self.entry.data[FLOW_PLANT_INFO].get("default_fertilizer_consumption_aggregation", DEFAULT_AGGREGATIONS['fertilizer_consumption'])
                 ): vol.In(AGGREGATION_METHODS_EXTENDED),
+                vol.Optional(
+                    "default_total_water_consumption_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_total_water_consumption_aggregation", DEFAULT_AGGREGATIONS['total_water_consumption'])
+                ): vol.In(AGGREGATION_METHODS_EXTENDED),
+                vol.Optional(
+                    "default_total_fertilizer_consumption_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_total_fertilizer_consumption_aggregation", DEFAULT_AGGREGATIONS['total_fertilizer_consumption'])
+                ): vol.In(AGGREGATION_METHODS_EXTENDED),
+                vol.Optional(
+                    ATTR_KWH_PRICE,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(ATTR_KWH_PRICE, DEFAULT_KWH_PRICE)
+                ): vol.Coerce(float),
+                vol.Optional(
+                    FLOW_DOWNLOAD_PATH,
+                    default=self.entry.data[FLOW_PLANT_INFO].get(FLOW_DOWNLOAD_PATH, DEFAULT_IMAGE_PATH)
+                ): str,
             })
         else:
             # Normale Plant/Cycle Optionen
@@ -1160,42 +1309,81 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                         sensor_entities.setdefault("moisture", []).append(entity_id)
                     elif device_class == SensorDeviceClass.CONDUCTIVITY:  # Korrekte Device Class
                         sensor_entities.setdefault("conductivity", []).append(entity_id)
+                    elif device_class == SensorDeviceClass.ENERGY:  # Füge Power Consumption hinzu
+                        sensor_entities.setdefault("energy", []).append(entity_id)
 
                 # Füge Sensor-Auswahlfelder hinzu
-                current_temp = self.entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_TEMPERATURE, "")
                 if sensor_entities.get("temperature"):
                     data_schema[
-                        vol.Optional(FLOW_SENSOR_TEMPERATURE, 
-                                   description={"suggested_value": current_temp})
-                    ] = vol.In([""] + sorted(sensor_entities["temperature"]))
+                        vol.Optional(FLOW_SENSOR_TEMPERATURE, default=self.plant.sensor_temperature.external_sensor if self.plant.sensor_temperature else None)
+                    ] = selector(
+                        {
+                            ATTR_ENTITY: {
+                                ATTR_DEVICE_CLASS: SensorDeviceClass.TEMPERATURE,
+                                ATTR_DOMAIN: DOMAIN_SENSOR,
+                            }
+                        }
+                    )
 
-                current_moisture = self.entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_MOISTURE, "")
                 if sensor_entities.get("moisture"):
                     data_schema[
-                        vol.Optional(FLOW_SENSOR_MOISTURE,
-                                   description={"suggested_value": current_moisture})
-                    ] = vol.In([""] + sorted(sensor_entities["moisture"]))
+                        vol.Optional(FLOW_SENSOR_MOISTURE, default=self.plant.sensor_moisture.external_sensor if self.plant.sensor_moisture else None)
+                    ] = selector(
+                        {
+                            ATTR_ENTITY: {
+                                ATTR_DEVICE_CLASS: SensorDeviceClass.MOISTURE,
+                                ATTR_DOMAIN: DOMAIN_SENSOR,
+                            }
+                        }
+                    )
 
-                current_conductivity = self.entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_CONDUCTIVITY, "")
                 if sensor_entities.get("conductivity"):
                     data_schema[
-                        vol.Optional(FLOW_SENSOR_CONDUCTIVITY,
-                                   description={"suggested_value": current_conductivity})
-                    ] = vol.In([""] + sorted(sensor_entities["conductivity"]))
+                        vol.Optional(FLOW_SENSOR_CONDUCTIVITY, default=self.plant.sensor_conductivity.external_sensor if self.plant.sensor_conductivity else None)
+                    ] = selector(
+                        {
+                            ATTR_ENTITY: {
+                                ATTR_DEVICE_CLASS: SensorDeviceClass.CONDUCTIVITY,
+                                ATTR_DOMAIN: DOMAIN_SENSOR
+                            }
+                        }
+                    )
 
-                current_illuminance = self.entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_ILLUMINANCE, "")
                 if sensor_entities.get("illuminance"):
                     data_schema[
-                        vol.Optional(FLOW_SENSOR_ILLUMINANCE,
-                                   description={"suggested_value": current_illuminance})
-                    ] = vol.In([""] + sorted(sensor_entities["illuminance"]))
+                        vol.Optional(FLOW_SENSOR_ILLUMINANCE, default=self.plant.sensor_illuminance.external_sensor if self.plant.sensor_illuminance else None)
+                    ] = selector(
+                        {
+                            ATTR_ENTITY: {
+                                ATTR_DEVICE_CLASS: SensorDeviceClass.ILLUMINANCE,
+                                ATTR_DOMAIN: DOMAIN_SENSOR,
+                            }
+                        }
+                    )
 
-                current_humidity = self.entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_HUMIDITY, "")
                 if sensor_entities.get("humidity"):
                     data_schema[
-                        vol.Optional(FLOW_SENSOR_HUMIDITY,
-                                   description={"suggested_value": current_humidity})
-                    ] = vol.In([""] + sorted(sensor_entities["humidity"]))
+                        vol.Optional(FLOW_SENSOR_HUMIDITY, default=self.plant.sensor_humidity.external_sensor if self.plant.sensor_humidity else None)
+                    ] = selector(
+                        {
+                            ATTR_ENTITY: {
+                                ATTR_DEVICE_CLASS: SensorDeviceClass.HUMIDITY,
+                                ATTR_DOMAIN: DOMAIN_SENSOR,
+                            }
+                        }
+                    )
+
+                if sensor_entities.get("power_consumption"):
+                    data_schema[
+                        vol.Optional(FLOW_SENSOR_POWER_CONSUMPTION, default=self.plant.sensor_power_consumption.external_sensor if self.plant.sensor_power_consumption else None)
+                    ] = selector(
+                        {
+                            ATTR_ENTITY: {
+                                ATTR_DEVICE_CLASS: SensorDeviceClass.ENERGY,
+                                ATTR_DOMAIN: DOMAIN_SENSOR,
+                            }
+                        }
+                    )
 
             # Gemeinsame Trigger-Optionen für Plants und Cycles
             data_schema[
@@ -1220,6 +1408,21 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             data_schema[
                 vol.Optional(
                     FLOW_CONDUCTIVITY_TRIGGER, default=self.plant.conductivity_trigger
+                )
+            ] = cv.boolean
+            data_schema[
+                vol.Optional(
+                    FLOW_WATER_CONSUMPTION_TRIGGER, default=self.plant.water_consumption_trigger
+                )
+            ] = cv.boolean
+            data_schema[
+                vol.Optional(
+                    FLOW_FERTILIZER_CONSUMPTION_TRIGGER, default=self.plant.fertilizer_consumption_trigger
+                )
+            ] = cv.boolean
+            data_schema[
+                vol.Optional(
+                    FLOW_POWER_CONSUMPTION_TRIGGER, default=self.plant.power_consumption_trigger
                 )
             ] = cv.boolean
 
