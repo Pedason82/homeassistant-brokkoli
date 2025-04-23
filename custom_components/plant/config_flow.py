@@ -1293,6 +1293,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     default=self.entry.data[FLOW_PLANT_INFO].get("default_health_aggregation", DEFAULT_AGGREGATIONS['health'])
                 ): vol.In(AGGREGATION_METHODS),
                 vol.Optional(
+                    "default_ph_aggregation",
+                    default=self.entry.data[FLOW_PLANT_INFO].get("default_ph_aggregation", DEFAULT_AGGREGATIONS['ph'])
+                ): vol.In(AGGREGATION_METHODS),
+                vol.Optional(
                     ATTR_KWH_PRICE,
                     default=self.entry.data[FLOW_PLANT_INFO].get(ATTR_KWH_PRICE, DEFAULT_KWH_PRICE)
                 ): vol.Coerce(float),
