@@ -4,7 +4,7 @@ from homeassistant.const import ATTR_ICON
 
 DOMAIN = "plant"
 DOMAIN_SENSOR = "sensor"
-DOMAIN_PLANTBOOK = "openplantbook"
+DOMAIN_SEEDFINDER = "seedfinder"
 CYCLE_DOMAIN = "cycle"
 
 REQUEST_TIMEOUT = 30
