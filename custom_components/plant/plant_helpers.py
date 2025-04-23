@@ -49,7 +49,7 @@ from .const import (
     DEFAULT_MIN_MOISTURE,
     DEFAULT_MIN_TEMPERATURE,
     DOMAIN,
-    DOMAIN_PLANTBOOK,
+    DOMAIN_SEEDFINDER,
     FLOW_PLANT_INFO,
     OPB_DISPLAY_PID,
     OPB_GET,
@@ -97,11 +97,11 @@ class PlantHelper:
     def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the helper."""
         self._hass = hass
-        self.has_openplantbook = DOMAIN_PLANTBOOK in hass.config.components
+        self.has_seedfinder = DOMAIN_SEEDFINDER in hass.config.components
 
     async def get_plantbook_data(self, config: dict) -> dict:
         """Get plant data from OpenPlantbook."""
-        if not self.has_openplantbook:
+        if not self.has_seedfinder:
             return {}
 
         strain = config.get(ATTR_STRAIN)
@@ -111,7 +111,7 @@ class PlantHelper:
 
         try:
             result = await self._hass.services.async_call(
-                DOMAIN_PLANTBOOK,
+                DOMAIN_SEEDFINDER,
                 OPB_GET,
                 {
                     "species": strain,
@@ -180,7 +180,7 @@ class PlantHelper:
         ret[FLOW_PLANT_INFO] = {}
 
         # Get OpenPlantbook data if available
-        if self.has_openplantbook and config.get(ATTR_DEVICE_TYPE) != DEVICE_TYPE_CYCLE:
+        if self.has_seedfinder and config.get(ATTR_DEVICE_TYPE) != DEVICE_TYPE_CYCLE:
             opb_config = await self.get_plantbook_data(config)
             if opb_config:
                 ret.update(opb_config)
