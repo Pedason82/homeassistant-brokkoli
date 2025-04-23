@@ -253,8 +253,8 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     "default_total_fertilizer_consumption_aggregation": DEFAULT_AGGREGATIONS['total_fertilizer_consumption'],
                     "default_power_consumption_aggregation": DEFAULT_AGGREGATIONS['power_consumption'],
                     "default_total_power_consumption_aggregation": DEFAULT_AGGREGATIONS['total_power_consumption'],
-                    "default_health_aggregation": "default_health_aggregation",
-                    "default_ph_aggregation": DEFAULT_AGGREGATIONS.get('ph', 'mean'),
+                    "default_health_aggregation": DEFAULT_AGGREGATIONS['health'],
+                    "default_ph_aggregation": DEFAULT_AGGREGATIONS['ph'],
                     # Füge Download-Pfad für Bilder hinzu
                     FLOW_DOWNLOAD_PATH: DEFAULT_IMAGE_PATH,
                     "difficulty": "",
@@ -1003,8 +1003,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     "default_total_fertilizer_consumption_aggregation": "default_total_fertilizer_consumption_aggregation",
                     "default_power_consumption_aggregation": "default_power_consumption_aggregation",
                     "default_total_power_consumption_aggregation": "default_total_power_consumption_aggregation",
-                    "default_health_aggregation": "default_health_aggregation",
-                    "default_ph_aggregation": "default_ph_aggregation",
+                    "default_health_aggregation": DEFAULT_AGGREGATIONS['health'],
+                    "default_ph_aggregation": DEFAULT_AGGREGATIONS['ph'],
                     # Füge Download-Pfad hinzu
                     FLOW_DOWNLOAD_PATH: FLOW_DOWNLOAD_PATH,
                 }
