@@ -233,6 +233,14 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     # Füge kWh Preis hinzu
                     ATTR_KWH_PRICE: DEFAULT_KWH_PRICE,
                     # Default Icon für Cycle
+                    "default_cycle_icon": "🔄",
+                    "default_icon": "🥦",
+                    "default_growth_phase": DEFAULT_GROWTH_PHASE,
+                    "default_pot_size": DEFAULT_POT_SIZE,
+                    "default_water_capacity": DEFAULT_WATER_CAPACITY,
+                    "default_normalize_moisture": False,
+                    "default_normalize_window": DEFAULT_NORMALIZE_WINDOW,
+                    "default_normalize_percentile": DEFAULT_NORMALIZE_PERCENTILE,
 
                     # Default Aggregationsmethoden für Cycle
                     "default_growth_phase_aggregation": "min",
