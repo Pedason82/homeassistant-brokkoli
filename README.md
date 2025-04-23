@@ -11,7 +11,7 @@ TODO: Add new images to the dingausmwald/homeassistant-brokkoli repository.
 Image placeholders are marked with TODO comments throughout the document.
 -->
 
-This integration can automatically fetch data from [Seedfinder](https://github.com/dingausmwald/homeassistant-seedfinder) if you are a registered user. Registration is free.
+This integration can automatically fetch data from [Seedfinder](https://github.com/dingausmwald/homeassistant-seedfinder).
 
 # BREAKING CHANGES
 
