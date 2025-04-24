@@ -212,7 +212,7 @@ CONF_CHECK_DAYS = "check_days"
 CONF_STRAIN = "strain"
 CONF_IMAGE = "entity_picture"
 
-CONF_PLANTBOOK = "openplantbook"
+CONF_PLANTBOOK = "seedfinder"
 CONF_PLANTBOOK_MAPPING = {
     CONF_MIN_TEMPERATURE: "min_temp",
     CONF_MAX_TEMPERATURE: "max_temp",
