@@ -100,7 +100,7 @@ class PlantHelper:
         self.has_seedfinder = DOMAIN_SEEDFINDER in hass.config.components
 
     async def get_plantbook_data(self, config: dict) -> dict:
-        """Get plant data from OpenPlantbook."""
+        """Get plant data from Seedfinder."""
         if not self.has_seedfinder:
             return {}
 
@@ -122,7 +122,7 @@ class PlantHelper:
             )
             
             if result:
-                _LOGGER.debug("Raw OpenPlantbook response: %s", result)
+                _LOGGER.debug("Raw Seedfinder response: %s", result)
                 ret = {}
                 ret[FLOW_PLANT_INFO] = {
                     DATA_SOURCE: DATA_SOURCE_PLANTBOOK,
@@ -169,7 +169,7 @@ class PlantHelper:
                 return ret
 
         except Exception as ex:
-            _LOGGER.warning("Unable to get OpenPlantbook data: %s", ex)
+            _LOGGER.warning("Unable to get Seedfinder data: %s", ex)
             
         return {}
 
@@ -179,7 +179,7 @@ class PlantHelper:
         ret = {}
         ret[FLOW_PLANT_INFO] = {}
 
-        # Get OpenPlantbook data if available
+        # Get Seedfinder data if available
         if self.has_seedfinder and config.get(ATTR_DEVICE_TYPE) != DEVICE_TYPE_CYCLE:
             opb_config = await self.get_plantbook_data(config)
             if opb_config:
