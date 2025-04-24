@@ -4,7 +4,7 @@ from homeassistant.const import ATTR_ICON
 
 DOMAIN = "plant"
 DOMAIN_SENSOR = "sensor"
-DOMAIN_SEEDFINDER = "seedfinder"
+DOMAIN_PLANTBOOK = "seedfinder"
 CYCLE_DOMAIN = "cycle"
 
 REQUEST_TIMEOUT = 30
@@ -212,7 +212,7 @@ CONF_CHECK_DAYS = "check_days"
 CONF_STRAIN = "strain"
 CONF_IMAGE = "entity_picture"
 
-CONF_PLANTBOOK = "seedfinder"
+CONF_PLANTBOOK = "openplantbook"
 CONF_PLANTBOOK_MAPPING = {
     CONF_MIN_TEMPERATURE: "min_temp",
     CONF_MAX_TEMPERATURE: "max_temp",
