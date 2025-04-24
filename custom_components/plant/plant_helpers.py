@@ -49,7 +49,7 @@ from .const import (
     DEFAULT_MIN_MOISTURE,
     DEFAULT_MIN_TEMPERATURE,
     DOMAIN,
-    DOMAIN_SEEDFINDER,
+    DOMAIN_PLANTBOOK,
     FLOW_PLANT_INFO,
     OPB_DISPLAY_PID,
     OPB_GET,
@@ -97,11 +97,11 @@ class PlantHelper:
     def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the helper."""
         self._hass = hass
-        self.has_seedfinder = DOMAIN_SEEDFINDER in hass.config.components
+        self.has_openplantbook = DOMAIN_PLANTBOOK in hass.config.components
 
     async def get_plantbook_data(self, config: dict) -> dict:
-        """Get plant data from Seedfinder."""
-        if not self.has_seedfinder:
+        """Get plant data from OpenPlantbook."""
+        if not self.has_openplantbook:
             return {}
 
         strain = config.get(ATTR_STRAIN)
@@ -111,7 +111,7 @@ class PlantHelper:
 
         try:
             result = await self._hass.services.async_call(
-                DOMAIN_SEEDFINDER,
+                DOMAIN_PLANTBOOK,
                 OPB_GET,
                 {
                     "species": strain,
@@ -122,7 +122,7 @@ class PlantHelper:
             )
             
             if result:
-                _LOGGER.debug("Raw Seedfinder response: %s", result)
+                _LOGGER.debug("Raw OpenPlantbook response: %s", result)
                 ret = {}
                 ret[FLOW_PLANT_INFO] = {
                     DATA_SOURCE: DATA_SOURCE_PLANTBOOK,
@@ -169,7 +169,7 @@ class PlantHelper:
                 return ret
 
         except Exception as ex:
-            _LOGGER.warning("Unable to get Seedfinder data: %s", ex)
+            _LOGGER.warning("Unable to get OpenPlantbook data: %s", ex)
             
         return {}
 
@@ -179,8 +179,8 @@ class PlantHelper:
         ret = {}
         ret[FLOW_PLANT_INFO] = {}
 
-        # Get Seedfinder data if available
-        if self.has_seedfinder and config.get(ATTR_DEVICE_TYPE) != DEVICE_TYPE_CYCLE:
+        # Get OpenPlantbook data if available
+        if self.has_openplantbook and config.get(ATTR_DEVICE_TYPE) != DEVICE_TYPE_CYCLE:
             opb_config = await self.get_plantbook_data(config)
             if opb_config:
                 ret.update(opb_config)
