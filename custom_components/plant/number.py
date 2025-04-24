@@ -16,6 +16,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers import device_registry as dr
+from homeassistant.util import dt as dt_util
 
 from .const import (
     ATTR_PLANT,
@@ -61,8 +62,6 @@ from .plant_thresholds import (
     PlantMaxPh,
     PlantMinPh,
 )
-
-from .plant_health import PlantHealthNumber
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -612,7 +611,7 @@ class WaterCapacityNumber(NumberEntity, RestoreEntity):
                     self._attr_native_value = DEFAULT_WATER_CAPACITY
 
 
-class PlantHealthNumber(NumberEntity, RestoreEntity):
+class PlantHealthNumber(RestoreNumber):
     """Number entity for plant health rating."""
 
     def __init__(self, hass: HomeAssistant, config: ConfigEntry, plant_device) -> None:
@@ -637,6 +636,12 @@ class PlantHealthNumber(NumberEntity, RestoreEntity):
         self._plant = plant_device
         self._attr_name = f"{plant_device.name} Health"
         self._attr_unique_id = f"{config.entry_id}-health"
+        
+        # Initialize health history
+        self._attr_extra_state_attributes = {
+            "friendly_name": self._attr_name,
+            "health_history": []
+        }
 
     @property
     def device_info(self) -> dict:
@@ -706,19 +711,34 @@ class PlantHealthNumber(NumberEntity, RestoreEntity):
             self._attr_native_value = HEALTH_DEFAULT
         else:
             # Neustart - stelle letzten Zustand wieder her
-            last_state = await self.async_get_last_state()
-            if last_state is not None:
-                try:
-                    self._attr_native_value = float(last_state.state)
-                except (TypeError, ValueError):
-                    self._attr_native_value = HEALTH_DEFAULT
+            last_state = await self.async_get_last_number_data()
+            if last_state:
+                self._attr_native_value = last_state.native_value
+                if last_state.attributes:
+                    self._attr_extra_state_attributes.update(last_state.attributes)
 
     async def async_set_native_value(self, value: float) -> None:
         """Update the current value."""
         # Runde auf erlaubte Schritte
         value = round(value / self._attr_native_step) * self._attr_native_step
+        
+        # Füge neuen Eintrag zur Historie hinzu
+        health_history = list(self._attr_extra_state_attributes.get("health_history", []))
+        health_history.append({
+            "date": dt_util.now().strftime("%Y-%m-%d"),
+            "rating": value,
+            "stars": "⭐" * int(value) + ("½" if value % 1 else "")  # Visuelle Darstellung für die Historie
+        })
+        
+        self._attr_extra_state_attributes["health_history"] = health_history
         self._attr_native_value = value
         self.async_write_ha_state()
+        
+        _LOGGER.debug(
+            "Added health rating %.1f to history for %s",
+            value,
+            self._plant.entity_id
+        )
 
         # Wenn ein Cycle seinen Health-Wert ändert, aktualisiere alle Member Plants
         if self._plant.device_type == DEVICE_TYPE_CYCLE:
