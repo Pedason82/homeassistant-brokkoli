@@ -114,23 +114,60 @@ async def async_setup_entry(
     """Set up Plant Sensors from a config entry."""
     plant = hass.data[DOMAIN][entry.entry_id][ATTR_PLANT]
 
-    # Erstelle die Standard-Sensoren für Plants
+    # Erstelle nur die Standard-Sensoren für Plants die externe Sensoren haben
     if plant.device_type != DEVICE_TYPE_CYCLE:
-        # Standard Sensoren erstellen
-        pcurb = PlantCurrentIlluminance(hass, entry, plant)
-        pcurc = PlantCurrentConductivity(hass, entry, plant)
-        pcurm = PlantCurrentMoisture(hass, entry, plant)
-        pcurt = PlantCurrentTemperature(hass, entry, plant)
-        pcurh = PlantCurrentHumidity(hass, entry, plant)
-        pcurph = PlantCurrentPh(hass, entry, plant)  # Neuer pH Sensor
-        
-        plant_sensors = [pcurb, pcurc, pcurm, pcurt, pcurh, pcurph]  # pH Sensor hinzugefügt
-        
-        # Erst die Entities zu HA hinzufügen
-        async_add_entities(plant_sensors)
-        hass.data[DOMAIN][entry.entry_id][ATTR_SENSORS] = plant_sensors
-        
-        # Dann die Sensoren der Plant hinzufügen
+        plant_sensors = []
+
+        # Erstelle nur Sensoren wenn externe Sensoren konfiguriert sind
+        if entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_ILLUMINANCE):
+            pcurb = PlantCurrentIlluminance(hass, entry, plant)
+            pcurb.replace_external_sensor(entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_ILLUMINANCE])
+            plant_sensors.append(pcurb)
+        else:
+            pcurb = None
+
+        if entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_CONDUCTIVITY):
+            pcurc = PlantCurrentConductivity(hass, entry, plant)
+            pcurc.replace_external_sensor(entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_CONDUCTIVITY])
+            plant_sensors.append(pcurc)
+        else:
+            pcurc = None
+
+        if entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_MOISTURE):
+            pcurm = PlantCurrentMoisture(hass, entry, plant)
+            pcurm.replace_external_sensor(entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_MOISTURE])
+            plant_sensors.append(pcurm)
+        else:
+            pcurm = None
+
+        if entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_TEMPERATURE):
+            pcurt = PlantCurrentTemperature(hass, entry, plant)
+            pcurt.replace_external_sensor(entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_TEMPERATURE])
+            plant_sensors.append(pcurt)
+        else:
+            pcurt = None
+
+        if entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_HUMIDITY):
+            pcurh = PlantCurrentHumidity(hass, entry, plant)
+            pcurh.replace_external_sensor(entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_HUMIDITY])
+            plant_sensors.append(pcurh)
+        else:
+            pcurh = None
+
+        # pH Sensor nur erstellen wenn konfiguriert
+        if entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_PH):
+            pcurph = PlantCurrentPh(hass, entry, plant)
+            pcurph.replace_external_sensor(entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_PH])
+            plant_sensors.append(pcurph)
+        else:
+            pcurph = None
+
+        # Nur erstellte Sensoren zu HA hinzufügen
+        if plant_sensors:
+            async_add_entities(plant_sensors)
+            hass.data[DOMAIN][entry.entry_id][ATTR_SENSORS] = plant_sensors
+
+        # Sensoren der Plant hinzufügen (auch None-Werte für nicht konfigurierte Sensoren)
         plant.add_sensors(
             temperature=pcurt,
             moisture=pcurm,
@@ -138,22 +175,8 @@ async def async_setup_entry(
             illuminance=pcurb,
             humidity=pcurh,
             power_consumption=None,  # Wird später gesetzt
-            ph=pcurph,  # pH Sensor hinzugefügt
+            ph=pcurph,
         )
-
-        # Jetzt erst die externen Sensoren zuweisen
-        if entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_ILLUMINANCE):
-            pcurb.replace_external_sensor(entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_ILLUMINANCE])
-        if entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_CONDUCTIVITY):
-            pcurc.replace_external_sensor(entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_CONDUCTIVITY])
-        if entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_MOISTURE):
-            pcurm.replace_external_sensor(entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_MOISTURE])
-        if entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_TEMPERATURE):
-            pcurt.replace_external_sensor(entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_TEMPERATURE])
-        if entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_HUMIDITY):
-            pcurh.replace_external_sensor(entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_HUMIDITY])
-        if entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_PH):  # pH Sensor zuweisen
-            pcurph.replace_external_sensor(entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_PH])
 
         # PPFD und DLI für Plants
         pcurppfd = PlantCurrentPpfd(hass, entry, plant)

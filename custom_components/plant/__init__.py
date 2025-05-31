@@ -125,10 +125,7 @@ from .services import async_setup_services, async_unload_services
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = [Platform.NUMBER, Platform.SENSOR, Platform.SELECT, Platform.TEXT]
 
-# Use this during testing to generate some dummy-sensors
-# to provide random readings for temperature, moisture etc.
-SETUP_DUMMY_SENSORS = False
-USE_DUMMY_SENSORS = False
+# Dummy sensors are no longer used to improve performance and reduce logging
 
 @callback
 def _async_find_matching_config_entry(hass: HomeAssistant) -> ConfigEntry | None:
@@ -237,22 +234,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     plant.async_schedule_update_ha_state(True)
 
-    # Lets add the dummy sensors automatically if we are testing stuff
-    if USE_DUMMY_SENSORS is True:
-        for sensor in plant.meter_entities:
-            if sensor.external_sensor is None:
-                await hass.services.async_call(
-                    domain=DOMAIN,
-                    service=SERVICE_REPLACE_SENSOR,
-                    service_data={
-                        "meter_entity": sensor.entity_id,
-                        "new_sensor": sensor.entity_id.replace(
-                            "sensor.", "sensor.dummy_"
-                        ),
-                    },
-                    blocking=False,
-                    limit=30,
-                )
+    # Dummy sensors are no longer used to improve performance and reduce logging
 
     # Setze das Flag zurück nach vollständigem Setup
     if entry.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
