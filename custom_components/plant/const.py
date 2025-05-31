@@ -252,7 +252,7 @@ GROWTH_PHASES = [
     GROWTH_PHASE_GROWING,
     GROWTH_PHASE_FLOWERING,
     GROWTH_PHASE_HARVESTED,
-    GROWTH_PHASE_REMOVED,    # Ans Ende verschoben
+    GROWTH_PHASE_REMOVED,  # Ans Ende verschoben
 ]
 
 ATTR_FLOWERING_DURATION = "flowering_duration"
@@ -261,7 +261,7 @@ ATTR_ORIGINAL_FLOWERING_DURATION = "original_flowering_duration"  # Neue Konstan
 # Neue Konstanten für zusätzliche Pflanzeneigenschaften
 ATTR_WEBSITE = "website"
 ATTR_INFOTEXT1 = "infotext1"
-ATTR_INFOTEXT2 = "infotext2" 
+ATTR_INFOTEXT2 = "infotext2"
 ATTR_EFFECTS = "effects"
 ATTR_SMELL = "smell"
 ATTR_TASTE = "taste"
@@ -291,7 +291,7 @@ ATTR_DEVICE_TYPE = "device_type"
 
 DEVICE_TYPES = [
     DEVICE_TYPE_PLANT,
-    DEVICE_TYPE_CYCLE
+    DEVICE_TYPE_CYCLE,
 ]  # Config wird nicht in der Auswahl angezeigt
 
 # Icons für Device Types
@@ -312,38 +312,38 @@ AGGREGATION_ORIGINAL = "original"  # Neue Methode für DLI/PPFD Berechnungen
 
 AGGREGATION_METHODS = [
     AGGREGATION_MEDIAN,
-    AGGREGATION_MEAN, 
+    AGGREGATION_MEAN,
     AGGREGATION_MIN,
-    AGGREGATION_MAX
+    AGGREGATION_MAX,
 ]
 
 # Erweiterte Methoden für DLI/PPFD
 AGGREGATION_METHODS_EXTENDED = [
     AGGREGATION_ORIGINAL,  # Original zuerst, da dies der Standardwert sein soll
     AGGREGATION_MEDIAN,
-    AGGREGATION_MEAN, 
+    AGGREGATION_MEAN,
     AGGREGATION_MIN,
-    AGGREGATION_MAX
+    AGGREGATION_MAX,
 ]
 
 # Default Aggregationen pro Sensor-Typ
 DEFAULT_AGGREGATIONS = {
-    'temperature': AGGREGATION_MEAN,
-    'moisture': AGGREGATION_MEDIAN,
-    'conductivity': AGGREGATION_MEDIAN,
-    'illuminance': AGGREGATION_MEAN,
-    'humidity': AGGREGATION_MEAN,
-    'ppfd': AGGREGATION_ORIGINAL,
-    'dli': AGGREGATION_ORIGINAL,
-    'total_integral': AGGREGATION_ORIGINAL,
-    'moisture_consumption': AGGREGATION_ORIGINAL,
-    'fertilizer_consumption': AGGREGATION_ORIGINAL,
-    'total_water_consumption': AGGREGATION_ORIGINAL,
-    'total_fertilizer_consumption': AGGREGATION_ORIGINAL,
-    'power_consumption': AGGREGATION_MEAN,
-    'total_power_consumption': AGGREGATION_ORIGINAL,
-    'health': AGGREGATION_MEAN,  # Hinzugefügt für Health Helper
-    'ph': AGGREGATION_MEDIAN,  # Neue Default-Aggregation für pH
+    "temperature": AGGREGATION_MEAN,
+    "moisture": AGGREGATION_MEDIAN,
+    "conductivity": AGGREGATION_MEDIAN,
+    "illuminance": AGGREGATION_MEAN,
+    "humidity": AGGREGATION_MEAN,
+    "ppfd": AGGREGATION_ORIGINAL,
+    "dli": AGGREGATION_ORIGINAL,
+    "total_integral": AGGREGATION_ORIGINAL,
+    "moisture_consumption": AGGREGATION_ORIGINAL,
+    "fertilizer_consumption": AGGREGATION_ORIGINAL,
+    "total_water_consumption": AGGREGATION_ORIGINAL,
+    "total_fertilizer_consumption": AGGREGATION_ORIGINAL,
+    "power_consumption": AGGREGATION_MEAN,
+    "total_power_consumption": AGGREGATION_ORIGINAL,
+    "health": AGGREGATION_MEAN,  # Hinzugefügt für Health Helper
+    "ph": AGGREGATION_MEDIAN,  # Neue Default-Aggregation für pH
 }
 
 # Config Flow Keys

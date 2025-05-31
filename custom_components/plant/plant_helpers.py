@@ -1,4 +1,5 @@
 """Plant helper functions"""
+
 from __future__ import annotations
 
 import logging
@@ -91,6 +92,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class PlantHelper:
     """Helper class for plant component."""
 
@@ -113,14 +115,11 @@ class PlantHelper:
             result = await self._hass.services.async_call(
                 DOMAIN_PLANTBOOK,
                 OPB_GET,
-                {
-                    "species": strain,
-                    "breeder": breeder
-                },
+                {"species": strain, "breeder": breeder},
                 blocking=True,
-                return_response=True
+                return_response=True,
             )
-            
+
             if result:
                 _LOGGER.debug("Raw OpenPlantbook response: %s", result)
                 ret = {}
@@ -132,7 +131,9 @@ class PlantHelper:
                     ATTR_ENTITY_PICTURE: result.get("image_url", ""),
                     OPB_DISPLAY_PID: result.get("strain", ""),
                     ATTR_FLOWERING_DURATION: int(result.get("flowertime", "0")),
-                    ATTR_ORIGINAL_FLOWERING_DURATION: int(result.get("flowertime", "0")),
+                    ATTR_ORIGINAL_FLOWERING_DURATION: int(
+                        result.get("flowertime", "0")
+                    ),
                     "sorte": result.get("sorte", ""),
                     "feminized": result.get("feminized", ""),
                     "timestamp": result.get("timestamp", ""),
@@ -170,7 +171,7 @@ class PlantHelper:
 
         except Exception as ex:
             _LOGGER.warning("Unable to get OpenPlantbook data: %s", ex)
-            
+
         return {}
 
     async def generate_configentry(self, config: dict) -> dict[str:Any]:
@@ -193,7 +194,8 @@ class PlantHelper:
 
         # Basis-Attribute für beide Typen
         base_info = {
-            ATTR_NAME: config[ATTR_NAME] + (f" {config['plant_emoji']}" if "plant_emoji" in config else ""),
+            ATTR_NAME: config[ATTR_NAME]
+            + (f" {config['plant_emoji']}" if "plant_emoji" in config else ""),
             ATTR_STRAIN: config.get(ATTR_STRAIN, ""),
             ATTR_BREEDER: config.get(ATTR_BREEDER, ""),
             ATTR_POT_SIZE: config.get(ATTR_POT_SIZE, DEFAULT_POT_SIZE),
@@ -222,24 +224,29 @@ class PlantHelper:
 
         # Füge lineage und infotexte nur für Plants hinzu
         if config.get(ATTR_DEVICE_TYPE) != DEVICE_TYPE_CYCLE:
-            base_info.update({
-                "lineage": "",
-                "infotext1": "",
-                "infotext2": "",
-            })
+            base_info.update(
+                {
+                    "lineage": "",
+                    "infotext1": "",
+                    "infotext2": "",
+                }
+            )
 
         ret[FLOW_PLANT_INFO] = base_info
 
         # Füge die Standard-Grenzwerte hinzu
         # Hole die Default-Werte aus dem Konfigurationsknoten
         config_entry = next(
-            (entry for entry in self._hass.config_entries.async_entries(DOMAIN) 
-             if entry.data.get("is_config", False)), 
-            None
+            (
+                entry
+                for entry in self._hass.config_entries.async_entries(DOMAIN)
+                if entry.data.get("is_config", False)
+            ),
+            None,
         )
 
         config_data = config_entry.data[FLOW_PLANT_INFO] if config_entry else {}
-        
+
         ret[FLOW_PLANT_INFO][ATTR_LIMITS] = {
             CONF_MAX_MOISTURE: config_data.get(CONF_DEFAULT_MAX_MOISTURE, 60),
             CONF_MIN_MOISTURE: config_data.get(CONF_DEFAULT_MIN_MOISTURE, 20),
@@ -253,12 +260,26 @@ class PlantHelper:
             CONF_MIN_CONDUCTIVITY: config_data.get(CONF_DEFAULT_MIN_CONDUCTIVITY, 500),
             CONF_MAX_HUMIDITY: config_data.get(CONF_DEFAULT_MAX_HUMIDITY, 60),
             CONF_MIN_HUMIDITY: config_data.get(CONF_DEFAULT_MIN_HUMIDITY, 20),
-            CONF_MAX_WATER_CONSUMPTION: config_data.get(CONF_DEFAULT_MAX_WATER_CONSUMPTION, DEFAULT_MAX_WATER_CONSUMPTION),
-            CONF_MIN_WATER_CONSUMPTION: config_data.get(CONF_DEFAULT_MIN_WATER_CONSUMPTION, DEFAULT_MIN_WATER_CONSUMPTION),
-            CONF_MAX_FERTILIZER_CONSUMPTION: config_data.get(CONF_DEFAULT_MAX_FERTILIZER_CONSUMPTION, DEFAULT_MAX_FERTILIZER_CONSUMPTION),
-            CONF_MIN_FERTILIZER_CONSUMPTION: config_data.get(CONF_DEFAULT_MIN_FERTILIZER_CONSUMPTION, DEFAULT_MIN_FERTILIZER_CONSUMPTION),
-            CONF_MAX_POWER_CONSUMPTION: config_data.get(CONF_DEFAULT_MAX_POWER_CONSUMPTION, DEFAULT_MAX_POWER_CONSUMPTION),
-            CONF_MIN_POWER_CONSUMPTION: config_data.get(CONF_DEFAULT_MIN_POWER_CONSUMPTION, DEFAULT_MIN_POWER_CONSUMPTION),
+            CONF_MAX_WATER_CONSUMPTION: config_data.get(
+                CONF_DEFAULT_MAX_WATER_CONSUMPTION, DEFAULT_MAX_WATER_CONSUMPTION
+            ),
+            CONF_MIN_WATER_CONSUMPTION: config_data.get(
+                CONF_DEFAULT_MIN_WATER_CONSUMPTION, DEFAULT_MIN_WATER_CONSUMPTION
+            ),
+            CONF_MAX_FERTILIZER_CONSUMPTION: config_data.get(
+                CONF_DEFAULT_MAX_FERTILIZER_CONSUMPTION,
+                DEFAULT_MAX_FERTILIZER_CONSUMPTION,
+            ),
+            CONF_MIN_FERTILIZER_CONSUMPTION: config_data.get(
+                CONF_DEFAULT_MIN_FERTILIZER_CONSUMPTION,
+                DEFAULT_MIN_FERTILIZER_CONSUMPTION,
+            ),
+            CONF_MAX_POWER_CONSUMPTION: config_data.get(
+                CONF_DEFAULT_MAX_POWER_CONSUMPTION, DEFAULT_MAX_POWER_CONSUMPTION
+            ),
+            CONF_MIN_POWER_CONSUMPTION: config_data.get(
+                CONF_DEFAULT_MIN_POWER_CONSUMPTION, DEFAULT_MIN_POWER_CONSUMPTION
+            ),
         }
 
         _LOGGER.debug("Resulting config: %s", ret)
