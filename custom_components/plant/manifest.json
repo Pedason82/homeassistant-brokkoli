@@ -13,17 +13,11 @@
   ],
   "config_flow": true,
   "documentation": "https://github.com/Pedason82/homeassistant-brokkoli/",
+  "iot_class": "local_push",
   "issue_tracker": "https://github.com/Pedason82/homeassistant-brokkoli/issues",
   "requirements": [
     "async-timeout>=4.0.2"
   ],
-  "version": "2025.4.0-beta1",
-  "translations": [
-    {
-      "platform": "config_flow",
-      "version": "1.0",
-      "languages": ["en", "de"]
-    }
+  "version": "2025.4.0-beta1"
   ],
-  "iot_class": "local_push"
 }
