@@ -7,7 +7,7 @@
 > All credit for the original development goes to the original author.
 
 <!-- 
-TODO: Add new images to the dingausmwald/homeassistant-brokkoli repository.
+TODO: Add new images to the dingausmwald/homeassistant-brokkoli repository. 
 Image placeholders are marked with TODO comments throughout the document.
 -->
 
