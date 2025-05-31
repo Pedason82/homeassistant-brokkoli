@@ -108,6 +108,8 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
@@ -121,35 +123,45 @@ async def async_setup_entry(
         # Erstelle nur Sensoren wenn externe Sensoren konfiguriert sind
         if entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_ILLUMINANCE):
             pcurb = PlantCurrentIlluminance(hass, entry, plant)
-            pcurb.replace_external_sensor(entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_ILLUMINANCE])
+            pcurb.replace_external_sensor(
+                entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_ILLUMINANCE]
+            )
             plant_sensors.append(pcurb)
         else:
             pcurb = None
 
         if entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_CONDUCTIVITY):
             pcurc = PlantCurrentConductivity(hass, entry, plant)
-            pcurc.replace_external_sensor(entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_CONDUCTIVITY])
+            pcurc.replace_external_sensor(
+                entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_CONDUCTIVITY]
+            )
             plant_sensors.append(pcurc)
         else:
             pcurc = None
 
         if entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_MOISTURE):
             pcurm = PlantCurrentMoisture(hass, entry, plant)
-            pcurm.replace_external_sensor(entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_MOISTURE])
+            pcurm.replace_external_sensor(
+                entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_MOISTURE]
+            )
             plant_sensors.append(pcurm)
         else:
             pcurm = None
 
         if entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_TEMPERATURE):
             pcurt = PlantCurrentTemperature(hass, entry, plant)
-            pcurt.replace_external_sensor(entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_TEMPERATURE])
+            pcurt.replace_external_sensor(
+                entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_TEMPERATURE]
+            )
             plant_sensors.append(pcurt)
         else:
             pcurt = None
 
         if entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_HUMIDITY):
             pcurh = PlantCurrentHumidity(hass, entry, plant)
-            pcurh.replace_external_sensor(entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_HUMIDITY])
+            pcurh.replace_external_sensor(
+                entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_HUMIDITY]
+            )
             plant_sensors.append(pcurh)
         else:
             pcurh = None
@@ -224,7 +236,9 @@ async def async_setup_entry(
             async_add_entities([total_fertilizer_consumption])
 
         # Jetzt können wir add_calculations aufrufen
-        plant.add_calculations(pcurppfd, pintegral, moisture_consumption, fertilizer_consumption)
+        plant.add_calculations(
+            pcurppfd, pintegral, moisture_consumption, fertilizer_consumption
+        )
         # Füge die Total Consumption Sensoren hinzu
         plant.total_water_consumption = total_water_consumption
         plant.total_fertilizer_consumption = total_fertilizer_consumption
@@ -233,53 +247,61 @@ async def async_setup_entry(
         async_add_entities(new_entities=[pdli], update_before_add=True)
 
         plant.add_dli(dli=pdli)
-        
+
         # Füge zuerst den Total Power Consumption Sensor hinzu
         if plant.device_type != DEVICE_TYPE_CYCLE:
             total_power_consumption = PlantTotalPowerConsumption(hass, entry, plant)
             async_add_entities([total_power_consumption])
-            
+
             # Weise den externen Sensor zu
             if entry.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_POWER_CONSUMPTION):
-                total_power_consumption.replace_external_sensor(entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_POWER_CONSUMPTION])
-            
+                total_power_consumption.replace_external_sensor(
+                    entry.data[FLOW_PLANT_INFO][FLOW_SENSOR_POWER_CONSUMPTION]
+                )
+
             # Dann erst den Current Power Consumption Sensor erstellen
             pcurp = PlantCurrentPowerConsumption(hass, entry, plant)
             async_add_entities([pcurp])
-            
+
             # Jetzt können wir beide Sensoren der Plant hinzufügen
             plant.add_power_consumption_sensors(
-                current=pcurp,
-                total=total_power_consumption
+                current=pcurp, total=total_power_consumption
             )
 
     # Erstelle die Median-Sensoren für Cycles
     if plant.device_type == DEVICE_TYPE_CYCLE:
         cycle_sensors = []
-        
+
         # Erstelle die Basis-Sensoren
-        for sensor_type in ["temperature", "moisture", "conductivity", "illuminance", "humidity", "ph"]:
+        for sensor_type in [
+            "temperature",
+            "moisture",
+            "conductivity",
+            "illuminance",
+            "humidity",
+            "ph",
+        ]:
             sensor = CycleMedianSensor(hass, entry, plant, sensor_type)
             cycle_sensors.append(sensor)
-            
+
         # Erstelle die berechneten Sensoren
         for sensor_type in [
-            "ppfd", 
-            "dli", 
-            "total_integral", 
+            "ppfd",
+            "dli",
+            "total_integral",
             "moisture_consumption",
             "total_water_consumption",  # Füge Total Water hinzu
             "fertilizer_consumption",
             "total_fertilizer_consumption",  # Füge Total Fertilizer hinzu
             "power_consumption",
-            "total_power_consumption"  # Füge Total Power hinzu
+            "total_power_consumption",  # Füge Total Power hinzu
         ]:
             sensor = CycleMedianSensor(hass, entry, plant, sensor_type)
             cycle_sensors.append(sensor)
-        
+
         # Füge alle Sensoren zu Home Assistant hinzu
         async_add_entities(cycle_sensors)
-        
+
         # Füge die Sensoren der Plant hinzu
         plant.add_sensors(
             temperature=cycle_sensors[0],
@@ -287,34 +309,36 @@ async def async_setup_entry(
             conductivity=cycle_sensors[2],
             illuminance=cycle_sensors[3],
             humidity=cycle_sensors[4],
-            power_consumption=cycle_sensors[13],  # Aktualisiere Index für Power Consumption (eins mehr wegen pH)
+            power_consumption=cycle_sensors[
+                13
+            ],  # Aktualisiere Index für Power Consumption (eins mehr wegen pH)
             ph=cycle_sensors[5],  # pH-Sensor hinzugefügt
         )
-        
+
         # Füge die berechneten Sensoren hinzu
         plant.add_calculations(
             ppfd=cycle_sensors[6],
             total_integral=cycle_sensors[8],
             moisture_consumption=cycle_sensors[9],
-            fertilizer_consumption=cycle_sensors[11]
+            fertilizer_consumption=cycle_sensors[11],
         )
         plant.add_dli(dli=cycle_sensors[7])
-        
+
         # Füge auch für Cycles die Total Consumption Sensoren direkt hinzu
         plant.total_water_consumption = cycle_sensors[10]
         plant.total_fertilizer_consumption = cycle_sensors[12]
-        
+
         # Korrigierte Verwendung der add_power_consumption_sensors Methode
         # Der aktuelle Sensor wurde bereits durch add_sensors hinzugefügt, hier nur total hinzufügen
         plant.add_power_consumption_sensors(
             current=plant.sensor_power_consumption,  # Bereits zugewiesen
-            total=cycle_sensors[14]
+            total=cycle_sensors[14],
         )
 
     # Füge Energiekosten-Sensor hinzu
     energy_cost = PlantEnergyCost(hass, entry, plant)
     plant.energy_cost = energy_cost  # Speichere Referenz in der Plant
-    
+
     async_add_entities([energy_cost])
 
     return True
@@ -346,12 +370,16 @@ class PlantCurrentStatus(RestoreSensor):
     @property
     def state_class(self):
         """Return the state class."""
-        return self._attr_state_class if hasattr(self, '_attr_state_class') else SensorStateClass.MEASUREMENT
+        return (
+            self._attr_state_class
+            if hasattr(self, "_attr_state_class")
+            else SensorStateClass.MEASUREMENT
+        )
 
     @property
     def device_class(self):
         """Return the device class."""
-        return self._attr_device_class if hasattr(self, '_attr_device_class') else None
+        return self._attr_device_class if hasattr(self, "_attr_device_class") else None
 
     @property
     def device_info(self) -> dict:
@@ -449,7 +477,9 @@ class PlantCurrentStatus(RestoreSensor):
                 if state:
                     self._attr_native_value = float(state.state)
                     if ATTR_UNIT_OF_MEASUREMENT in state.attributes:
-                        self._attr_native_unit_of_measurement = state.attributes[ATTR_UNIT_OF_MEASUREMENT]
+                        self._attr_native_unit_of_measurement = state.attributes[
+                            ATTR_UNIT_OF_MEASUREMENT
+                        ]
             except AttributeError:
                 _LOGGER.debug(
                     "Unknown external sensor for %s: %s, setting to default: %s",
@@ -509,31 +539,41 @@ class PlantCurrentConductivity(PlantCurrentStatus):
         self._attr_name = f"{plantdevice.name} {READING_CONDUCTIVITY}"
         self._attr_unique_id = f"{config.entry_id}-current-conductivity"
         self._attr_has_entity_name = False
-        self._external_sensor = config.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_CONDUCTIVITY)
+        self._external_sensor = config.data[FLOW_PLANT_INFO].get(
+            FLOW_SENSOR_CONDUCTIVITY
+        )
         self._attr_icon = ICON_CONDUCTIVITY
         self._attr_native_unit_of_measurement = UnitOfConductivity.MICROSIEMENS_PER_CM
         self._raw_value = None
-        
+
         # Lese Normalisierungseinstellungen aus der Config
-        self._normalize = config.data[FLOW_PLANT_INFO].get(ATTR_NORMALIZE_MOISTURE, False)
-        
+        self._normalize = config.data[FLOW_PLANT_INFO].get(
+            ATTR_NORMALIZE_MOISTURE, False
+        )
+
         super().__init__(hass, config, plantdevice)
 
     @property
     def extra_state_attributes(self) -> dict:
         """Return additional sensor attributes."""
         attributes = super().extra_state_attributes or {}
-        
+
         if self._normalize:
             moisture_sensor = self._plant.sensor_moisture
-            attributes.update({
-                "conductivity_normalization": {
-                    "enabled": True,
-                    "raw_value": self._raw_value,
-                    "factor": round(moisture_sensor._normalize_factor, 2) if hasattr(moisture_sensor, '_normalize_factor') else None,
+            attributes.update(
+                {
+                    "conductivity_normalization": {
+                        "enabled": True,
+                        "raw_value": self._raw_value,
+                        "factor": (
+                            round(moisture_sensor._normalize_factor, 2)
+                            if hasattr(moisture_sensor, "_normalize_factor")
+                            else None
+                        ),
+                    }
                 }
-            })
-        
+            )
+
         return attributes
 
     async def async_added_to_hass(self) -> None:
@@ -545,18 +585,23 @@ class PlantCurrentConductivity(PlantCurrentStatus):
     async def async_update(self) -> None:
         """Update the sensor."""
         await super().async_update()
-        
+
         # Speichere den Rohwert vor der Normalisierung
         if self._attr_native_value is not None:
             self._raw_value = self._attr_native_value
-        
+
         # Normalisiere den Wert wenn der Moisture Sensor normalisiert wird
         if self._normalize and self._attr_native_value is not None:
             moisture_sensor = self._plant.sensor_moisture
-            if (hasattr(moisture_sensor, '_normalize_factor') and
-                moisture_sensor._normalize_factor is not None):
+            if (
+                hasattr(moisture_sensor, "_normalize_factor")
+                and moisture_sensor._normalize_factor is not None
+            ):
                 try:
-                    normalized = float(self._attr_native_value) * moisture_sensor._normalize_factor
+                    normalized = (
+                        float(self._attr_native_value)
+                        * moisture_sensor._normalize_factor
+                    )
                     self._attr_native_value = round(normalized, 1)
                 except (ValueError, TypeError):
                     pass
@@ -585,7 +630,9 @@ class PlantCurrentMoisture(PlantCurrentStatus):
         self._normalize_factor = None  # Initialisiere normalize_factor
         super().__init__(hass, config, plantdevice)
 
-        self._normalize = config.data[FLOW_PLANT_INFO].get(ATTR_NORMALIZE_MOISTURE, False)
+        self._normalize = config.data[FLOW_PLANT_INFO].get(
+            ATTR_NORMALIZE_MOISTURE, False
+        )
         self._normalize_window = config.data[FLOW_PLANT_INFO].get(
             ATTR_NORMALIZE_WINDOW, DEFAULT_NORMALIZE_WINDOW
         )
@@ -598,12 +645,12 @@ class PlantCurrentMoisture(PlantCurrentStatus):
     async def async_added_to_hass(self) -> None:
         """When entity is added to hass."""
         await super().async_added_to_hass()
-        
+
         # Initialisiere Normalisierung beim Start
         if self._normalize:
             self._last_normalize_update = None  # Force update
             await self._update_normalization()
-            
+
             # Wenn es eine Neuerstellung ist, aktualisiere sofort
             if self._config.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
                 _LOGGER.debug("New plant created, updating normalization immediately")
@@ -615,15 +662,17 @@ class PlantCurrentMoisture(PlantCurrentStatus):
             return
 
         now = dt_util.utcnow()
-        
+
         # Aktualisiere nur alle 5 Minuten, außer bei None (Erststart/Neuerstellung)
-        if (self._last_normalize_update is not None and 
-            now - self._last_normalize_update < timedelta(minutes=5)):
+        if (
+            self._last_normalize_update is not None
+            and now - self._last_normalize_update < timedelta(minutes=5)
+        ):
             return
 
         # Hole historische Daten
         start_time = now - timedelta(days=self._normalize_window)
-        
+
         # Korrigierter Aufruf der history API mit dem richtigen Executor
         recorder = get_instance(self._hass)
         history_list = await recorder.async_add_executor_job(
@@ -631,7 +680,7 @@ class PlantCurrentMoisture(PlantCurrentStatus):
             self._hass,
             start_time,
             now,
-            self._external_sensor
+            self._external_sensor,
         )
 
         if not history_list or self._external_sensor not in history_list:
@@ -651,50 +700,60 @@ class PlantCurrentMoisture(PlantCurrentStatus):
             percentile_index = int(len(values) * self._normalize_percentile / 100)
             sorted_values = sorted(values)
             self._max_moisture = sorted_values[percentile_index]
-            self._normalize_factor = 100 / self._max_moisture  # Exakter Wert für Berechnungen
+            self._normalize_factor = (
+                100 / self._max_moisture
+            )  # Exakter Wert für Berechnungen
             self._last_normalize_update = now
             _LOGGER.debug(
                 "Updated moisture normalization: max=%s, factor=%s (from %s values)",
                 self._max_moisture,
                 round(self._normalize_factor, 2),  # Gerundeter Wert nur für Log
-                len(values)
+                len(values),
             )
 
     @property
     def extra_state_attributes(self) -> dict:
         """Return additional sensor attributes."""
         attributes = super().extra_state_attributes or {}
-        
+
         if self._normalize:
-            attributes.update({
-                "moisture_normalization": {
-                    "enabled": True,
-                    "window_days": self._normalize_window,
-                    "percentile": self._normalize_percentile,
-                    "current_max": self._max_moisture,
-                    "raw_value": self._raw_value if hasattr(self, '_raw_value') else None,
+            attributes.update(
+                {
+                    "moisture_normalization": {
+                        "enabled": True,
+                        "window_days": self._normalize_window,
+                        "percentile": self._normalize_percentile,
+                        "current_max": self._max_moisture,
+                        "raw_value": (
+                            self._raw_value if hasattr(self, "_raw_value") else None
+                        ),
+                    }
                 }
-            })
-        
+            )
+
         return attributes
 
     async def async_update(self) -> None:
         """Update the sensor."""
         await super().async_update()
-        
+
         # Speichere den Rohwert vor der Normalisierung
         if self._attr_native_value is not None:
             self._raw_value = self._attr_native_value
-        
+
         # Aktualisiere Normalisierung
         await self._update_normalization()
-        
+
         # Normalisiere den Wert wenn nötig
-        if (self._normalize and self._max_moisture and 
-            self._attr_native_value is not None):
+        if (
+            self._normalize
+            and self._max_moisture
+            and self._attr_native_value is not None
+        ):
             try:
-                normalized = min(100, (float(self._attr_native_value) / 
-                                     self._max_moisture) * 100)
+                normalized = min(
+                    100, (float(self._attr_native_value) / self._max_moisture) * 100
+                )
                 self._attr_native_value = round(normalized, 1)
             except (ValueError, TypeError):
                 pass
@@ -769,7 +828,7 @@ class PlantCurrentPpfd(PlantCurrentStatus):
         self.entity_id = async_generate_entity_id(
             f"{DOMAIN_SENSOR}.{{}}", self.name, current_ids={}
         )
-        
+
         # Setze Wert bei Neuerstellung zurück
         if config.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
             self._attr_native_value = None
@@ -866,7 +925,7 @@ class PlantTotalLightIntegral(IntegrationSensor):
         )
         self._plant = plantdevice
         self._attr_native_value = 0  # Starte immer bei 0
-        
+
         # Setze Wert bei Neuerstellung zurück
         if config.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
             self._attr_native_value = 0
@@ -895,7 +954,7 @@ class PlantTotalLightIntegral(IntegrationSensor):
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
         await super().async_added_to_hass()
-        
+
         # Bei einer neuen Plant nicht den alten State wiederherstellen
         if self._config.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
             self._attr_native_value = 0
@@ -925,7 +984,7 @@ class PlantDailyLightIntegral(RestoreSensor):
         self._last_update = None
         self._attr_native_value = 0  # Starte immer bei 0
         self._last_value = None  # Initialisiere _last_value
-        
+
         # Bei Neuerstellung explizit auf 0 setzen
         if config.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
             self._attr_native_value = 0
@@ -949,15 +1008,12 @@ class PlantDailyLightIntegral(RestoreSensor):
     @property
     def extra_state_attributes(self) -> dict:
         """Return additional sensor attributes."""
-        return {
-            "last_update": self._last_update,
-            "source_entity": self._source_entity
-        }
+        return {"last_update": self._last_update, "source_entity": self._source_entity}
 
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
         await super().async_added_to_hass()
-        
+
         # Restore previous state
         last_state = await self.async_get_last_state()
         if last_state and last_state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE):
@@ -968,7 +1024,7 @@ class PlantDailyLightIntegral(RestoreSensor):
                         self._last_update = last_state.attributes["last_update"]
             except (TypeError, ValueError):
                 self._attr_native_value = 0
-        
+
         # Track source entity changes
         async_track_state_change_event(
             self._hass,
@@ -989,24 +1045,26 @@ class PlantDailyLightIntegral(RestoreSensor):
         try:
             current_value = float(new_state.state)
             current_time = dt_util.utcnow()
-            
+
             # Add to history
             self._history.append((current_time, current_value))
-            
+
             # Entferne Einträge älter als 24 Stunden
             cutoff_time = current_time - timedelta(hours=24)
             self._history = [(t, v) for t, v in self._history if t >= cutoff_time]
-            
+
             # Berechne DLI aus den letzten 24 Stunden
             if len(self._history) >= 2:
                 # Konvertiere von mol/m²/s zu mol/m²/d (DLI)
                 time_diff = (self._history[-1][0] - self._history[0][0]).total_seconds()
                 if time_diff > 0:
-                    dli = (current_value - self._history[0][1]) * (24 * 3600 / time_diff)
+                    dli = (current_value - self._history[0][1]) * (
+                        24 * 3600 / time_diff
+                    )
                     self._attr_native_value = round(max(0, dli), 2)
                     self._last_update = current_time.isoformat()
                     self.async_write_ha_state()
-                
+
         except (TypeError, ValueError):
             pass
 
@@ -1043,9 +1101,7 @@ class PlantDummyIlluminance(PlantDummyStatus):
         self, hass: HomeAssistant, config: ConfigEntry, plantdevice: Entity
     ) -> None:
         """Init the dummy sensor"""
-        self._attr_name = (
-            f"Dummy {plantdevice.name} {READING_ILLUMINANCE}"
-        )
+        self._attr_name = f"Dummy {plantdevice.name} {READING_ILLUMINANCE}"
         self._attr_unique_id = f"{config.entry_id}-dummy-illuminance"
         self._attr_icon = ICON_ILLUMINANCE
         self._attr_native_unit_of_measurement = LIGHT_LUX
@@ -1075,9 +1131,7 @@ class PlantDummyConductivity(PlantDummyStatus):
         self, hass: HomeAssistant, config: ConfigEntry, plantdevice: Entity
     ) -> None:
         """Init the dummy sensor"""
-        self._attr_name = (
-            f"Dummy {plantdevice.name} {READING_CONDUCTIVITY}"
-        )
+        self._attr_name = f"Dummy {plantdevice.name} {READING_CONDUCTIVITY}"
         self._attr_unique_id = f"{config.entry_id}-dummy-conductivity"
         self._attr_icon = ICON_CONDUCTIVITY
         self._attr_native_unit_of_measurement = UNIT_CONDUCTIVITY
@@ -1102,9 +1156,7 @@ class PlantDummyMoisture(PlantDummyStatus):
         self, hass: HomeAssistant, config: ConfigEntry, plantdevice: Entity
     ) -> None:
         """Init the dummy sensor"""
-        self._attr_name = (
-            f"Dummy {plantdevice.name} {READING_MOISTURE}"
-        )
+        self._attr_name = f"Dummy {plantdevice.name} {READING_MOISTURE}"
         self._attr_unique_id = f"{config.entry_id}-dummy-moisture"
         self._attr_icon = ICON_MOISTURE
         self._attr_native_unit_of_measurement = PERCENTAGE
@@ -1130,9 +1182,7 @@ class PlantDummyTemperature(PlantDummyStatus):
     ) -> None:
         """Init the dummy sensor"""
 
-        self._attr_name = (
-            f"Dummy {plantdevice.name} {READING_TEMPERATURE}"
-        )
+        self._attr_name = f"Dummy {plantdevice.name} {READING_TEMPERATURE}"
         self._attr_unique_id = f"{config.entry_id}-dummy-temperature"
         self._attr_icon = ICON_TEMPERATURE
         self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
@@ -1157,9 +1207,7 @@ class PlantDummyHumidity(PlantDummyStatus):
         self, hass: HomeAssistant, config: ConfigEntry, plantdevice: Entity
     ) -> None:
         """Init the dummy sensor"""
-        self._attr_name = (
-            f"Dummy {plantdevice.name} {READING_HUMIDITY}"
-        )
+        self._attr_name = f"Dummy {plantdevice.name} {READING_HUMIDITY}"
         self._attr_unique_id = f"{config.entry_id}-dummy-humidity"
         self._attr_icon = ICON_HUMIDITY
         self._attr_native_unit_of_measurement = PERCENTAGE
@@ -1195,7 +1243,7 @@ class CycleMedianSensor(SensorEntity):
         self._sensor_type = sensor_type
         self._attr_has_entity_name = False
         self._attr_unique_id = f"{config_entry.entry_id}-median-{sensor_type}"
-        
+
         # Name mit korrektem Reading für PPFD und Total Integral
         if sensor_type == "ppfd":
             self._attr_name = f"{plant.name} {READING_PPFD}"
@@ -1224,7 +1272,9 @@ class CycleMedianSensor(SensorEntity):
 
         # Setze Icon und Unit basierend auf Sensor-Typ
         if sensor_type == "temperature":
-            self._attr_native_unit_of_measurement = self.hass.config.units.temperature_unit
+            self._attr_native_unit_of_measurement = (
+                self.hass.config.units.temperature_unit
+            )
             self._attr_icon = ICON_TEMPERATURE
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
         elif sensor_type == "moisture":
@@ -1284,7 +1334,9 @@ class CycleMedianSensor(SensorEntity):
             self._attr_icon = ICON_POWER_CONSUMPTION
             self._attr_device_class = SensorDeviceClass.POWER
             self._attr_state_class = SensorStateClass.MEASUREMENT
-        elif sensor_type == "total_power_consumption":  # Füge Total Power Consumption hinzu
+        elif (
+            sensor_type == "total_power_consumption"
+        ):  # Füge Total Power Consumption hinzu
             self._attr_native_unit_of_measurement = "kWh"
             self._attr_icon = ICON_POWER_CONSUMPTION
             self._attr_device_class = SensorDeviceClass.ENERGY
@@ -1309,12 +1361,12 @@ class CycleMedianSensor(SensorEntity):
     @property
     def extra_state_attributes(self):
         """Return additional sensor attributes."""
-        aggregation_method = self.plant._plant_info.get('aggregations', {}).get(
+        aggregation_method = self.plant._plant_info.get("aggregations", {}).get(
             self._sensor_type, DEFAULT_AGGREGATIONS[self._sensor_type]
         )
         return {
             "member_plants": self.plant._member_plants,
-            "aggregation_method": aggregation_method
+            "aggregation_method": aggregation_method,
         }
 
     async def async_update(self) -> None:
@@ -1351,7 +1403,7 @@ class PlantCurrentMoistureConsumption(RestoreSensor):
         self._history = []
         self._last_update = None
         self._attr_native_value = 0  # Starte immer bei 0
-        
+
         # Bei Neuerstellung explizit auf 0 setzen
         if config.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
             self._attr_native_value = 0
@@ -1368,15 +1420,21 @@ class PlantCurrentMoistureConsumption(RestoreSensor):
     def extra_state_attributes(self) -> dict:
         """Return additional sensor attributes."""
         return {
-            "pot_size": self._plant.pot_size.native_value if self._plant.pot_size else None,
-            "water_capacity": self._plant.water_capacity.native_value if self._plant.water_capacity else None,
+            "pot_size": (
+                self._plant.pot_size.native_value if self._plant.pot_size else None
+            ),
+            "water_capacity": (
+                self._plant.water_capacity.native_value
+                if self._plant.water_capacity
+                else None
+            ),
             "last_update": self._last_update,
         }
 
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
         await super().async_added_to_hass()
-        
+
         # Restore previous state
         last_state = await self.async_get_last_state()
         if last_state and last_state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE):
@@ -1387,7 +1445,7 @@ class PlantCurrentMoistureConsumption(RestoreSensor):
                         self._last_update = last_state.attributes["last_update"]
             except (TypeError, ValueError):
                 self._attr_native_value = 0
-        
+
         # Track moisture sensor changes
         async_track_state_change_event(
             self._hass,
@@ -1408,34 +1466,40 @@ class PlantCurrentMoistureConsumption(RestoreSensor):
         try:
             current_value = float(new_state.state)
             current_time = dt_util.utcnow()
-            
+
             # Add to history
             self._history.append((current_time, current_value))
-            
+
             # Remove entries older than 24 hours
             cutoff_time = current_time - timedelta(hours=24)
             self._history = [(t, v) for t, v in self._history if t >= cutoff_time]
-            
+
             if len(self._history) >= 2:
                 # Calculate total moisture drop
                 drops = []
                 for i in range(1, len(self._history)):
-                    if self._history[i][1] < self._history[i-1][1]:  # Only negative changes
-                        drop = self._history[i-1][1] - self._history[i][1]
+                    if (
+                        self._history[i][1] < self._history[i - 1][1]
+                    ):  # Only negative changes
+                        drop = self._history[i - 1][1] - self._history[i][1]
                         drops.append(drop)
-                
+
                 total_drop = sum(drops)
-                
+
                 # Convert moisture drop to volume
                 if self._plant.pot_size and self._plant.water_capacity:
                     pot_size = self._plant.pot_size.native_value
-                    water_capacity = self._plant.water_capacity.native_value / 100  # Convert from % to decimal
-                    volume_drop = (total_drop / 100) * pot_size * water_capacity  # Convert from % to L
-                    
+                    water_capacity = (
+                        self._plant.water_capacity.native_value / 100
+                    )  # Convert from % to decimal
+                    volume_drop = (
+                        (total_drop / 100) * pot_size * water_capacity
+                    )  # Convert from % to L
+
                     self._attr_native_value = round(volume_drop, 2)
                     self._last_update = current_time.isoformat()
                     self.async_write_ha_state()
-                
+
         except (TypeError, ValueError):
             pass
 
@@ -1461,7 +1525,7 @@ class PlantCurrentFertilizerConsumption(RestoreSensor):
         self._last_update = None
         self._attr_native_value = 0  # Starte immer bei 0
         self._last_value = None  # Initialisiere _last_value
-    
+
         # Bei Neuerstellung explizit auf 0 setzen
         if config.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
             self._attr_native_value = 0
@@ -1484,7 +1548,7 @@ class PlantCurrentFertilizerConsumption(RestoreSensor):
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
         await super().async_added_to_hass()
-        
+
         # Restore previous state
         last_state = await self.async_get_last_state()
         if last_state and last_state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE):
@@ -1493,7 +1557,7 @@ class PlantCurrentFertilizerConsumption(RestoreSensor):
                     self._attr_native_value = float(last_state.state)
             except (TypeError, ValueError):
                 self._attr_native_value = 0
-        
+
         # Track conductivity sensor changes
         async_track_state_change_event(
             self._hass,
@@ -1513,17 +1577,19 @@ class PlantCurrentFertilizerConsumption(RestoreSensor):
 
         try:
             current_value = float(new_state.state)
-            
+
             # Berechne nur die Differenz seit dem letzten Wert
             if self._last_value is not None:
                 if current_value > self._last_value:  # Nur positive Änderungen
                     increase = current_value - self._last_value
-                    self._attr_native_value += round(increase, 3)  # 3 Nachkommastellen statt 2
-            
+                    self._attr_native_value += round(
+                        increase, 3
+                    )  # 3 Nachkommastellen statt 2
+
             # Speichere aktuellen Wert für nächste Berechnung
             self._last_value = current_value
             self.async_write_ha_state()
-                
+
         except (TypeError, ValueError):
             pass
 
@@ -1543,11 +1609,13 @@ class PlantTotalWaterConsumption(RestoreSensor):
         self._attr_unique_id = f"{config.entry_id}-total-water-consumption"
         self._attr_native_unit_of_measurement = UNIT_VOLUME
         self._attr_icon = ICON_WATER_CONSUMPTION
-        self._attr_entity_category = EntityCategory.DIAGNOSTIC  # Füge Entity-Kategorie hinzu
+        self._attr_entity_category = (
+            EntityCategory.DIAGNOSTIC
+        )  # Füge Entity-Kategorie hinzu
         self._history = []
         self._last_update = None
         self._attr_native_value = 0  # Starte immer bei 0
-        
+
         # Bei Neuerstellung explizit auf 0 setzen
         if config.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
             self._attr_native_value = 0
@@ -1569,15 +1637,21 @@ class PlantTotalWaterConsumption(RestoreSensor):
     def extra_state_attributes(self) -> dict:
         """Return additional sensor attributes."""
         return {
-            "pot_size": self._plant.pot_size.native_value if self._plant.pot_size else None,
-            "water_capacity": self._plant.water_capacity.native_value if self._plant.water_capacity else None,
+            "pot_size": (
+                self._plant.pot_size.native_value if self._plant.pot_size else None
+            ),
+            "water_capacity": (
+                self._plant.water_capacity.native_value
+                if self._plant.water_capacity
+                else None
+            ),
             "last_update": self._last_update,
         }
 
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
         await super().async_added_to_hass()
-        
+
         # Restore previous state
         last_state = await self.async_get_last_state()
         if last_state and last_state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE):
@@ -1588,7 +1662,7 @@ class PlantTotalWaterConsumption(RestoreSensor):
                         self._last_update = last_state.attributes["last_update"]
             except (TypeError, ValueError):
                 self._attr_native_value = 0
-        
+
         # Track moisture sensor changes
         async_track_state_change_event(
             self._hass,
@@ -1609,30 +1683,36 @@ class PlantTotalWaterConsumption(RestoreSensor):
         try:
             current_value = float(new_state.state)
             current_time = dt_util.utcnow()
-            
+
             # Add to history
             self._history.append((current_time, current_value))
-            
+
             if len(self._history) >= 2:
                 # Calculate total moisture drop
                 drops = []
                 for i in range(1, len(self._history)):
-                    if self._history[i][1] < self._history[i-1][1]:  # Only negative changes
-                        drop = self._history[i-1][1] - self._history[i][1]
+                    if (
+                        self._history[i][1] < self._history[i - 1][1]
+                    ):  # Only negative changes
+                        drop = self._history[i - 1][1] - self._history[i][1]
                         drops.append(drop)
-                
+
                 total_drop = sum(drops)
-                
+
                 # Convert moisture drop to volume
                 if self._plant.pot_size and self._plant.water_capacity:
                     pot_size = self._plant.pot_size.native_value
-                    water_capacity = self._plant.water_capacity.native_value / 100  # Convert from % to decimal
-                    volume_drop = (total_drop / 100) * pot_size * water_capacity  # Convert from % to L
-                    
+                    water_capacity = (
+                        self._plant.water_capacity.native_value / 100
+                    )  # Convert from % to decimal
+                    volume_drop = (
+                        (total_drop / 100) * pot_size * water_capacity
+                    )  # Convert from % to L
+
                     self._attr_native_value = round(volume_drop, 2)
                     self._last_update = current_time.isoformat()
                     self.async_write_ha_state()
-                
+
         except (TypeError, ValueError):
             pass
 
@@ -1652,12 +1732,14 @@ class PlantTotalFertilizerConsumption(RestoreSensor):
         self._attr_unique_id = f"{config.entry_id}-total-fertilizer-consumption"
         self._attr_native_unit_of_measurement = UNIT_CONDUCTIVITY
         self._attr_icon = ICON_FERTILIZER_CONSUMPTION
-        self._attr_entity_category = EntityCategory.DIAGNOSTIC  # Füge Entity-Kategorie hinzu
+        self._attr_entity_category = (
+            EntityCategory.DIAGNOSTIC
+        )  # Füge Entity-Kategorie hinzu
         self._history = []
         self._last_update = None
         self._attr_native_value = 0  # Starte immer bei 0
         self._last_value = None  # Initialisiere _last_value
-    
+
         # Bei Neuerstellung explizit auf 0 setzen
         if config.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
             self._attr_native_value = 0
@@ -1685,7 +1767,7 @@ class PlantTotalFertilizerConsumption(RestoreSensor):
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
         await super().async_added_to_hass()
-        
+
         # Restore previous state
         last_state = await self.async_get_last_state()
         if last_state and last_state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE):
@@ -1694,7 +1776,7 @@ class PlantTotalFertilizerConsumption(RestoreSensor):
                     self._attr_native_value = float(last_state.state)
             except (TypeError, ValueError):
                 self._attr_native_value = 0
-        
+
         # Track conductivity sensor changes
         async_track_state_change_event(
             self._hass,
@@ -1714,17 +1796,19 @@ class PlantTotalFertilizerConsumption(RestoreSensor):
 
         try:
             current_value = float(new_state.state)
-            
+
             # Berechne nur die Differenz seit dem letzten Wert
             if self._last_value is not None:
                 if current_value > self._last_value:  # Nur positive Änderungen
                     increase = current_value - self._last_value
-                    self._attr_native_value += round(increase, 3)  # 3 Nachkommastellen statt 2
-            
+                    self._attr_native_value += round(
+                        increase, 3
+                    )  # 3 Nachkommastellen statt 2
+
             # Speichere aktuellen Wert für nächste Berechnung
             self._last_value = current_value
             self.async_write_ha_state()
-                
+
         except (TypeError, ValueError):
             pass
 
@@ -1746,11 +1830,13 @@ class PlantCurrentPowerConsumption(RestoreSensor):
         self._attr_icon = ICON_POWER_CONSUMPTION
         self._attr_native_unit_of_measurement = "W"  # Watt statt kWh
         self._attr_device_class = SensorDeviceClass.POWER  # POWER statt ENERGY
-        self._attr_state_class = SensorStateClass.MEASUREMENT  # MEASUREMENT statt TOTAL_INCREASING
+        self._attr_state_class = (
+            SensorStateClass.MEASUREMENT
+        )  # MEASUREMENT statt TOTAL_INCREASING
         self._last_value = None
         self._last_time = None
         self._attr_native_value = 0  # Starte immer bei 0
-        
+
         # Bei Neuerstellung explizit auf 0 setzen
         if config.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
             self._attr_native_value = 0
@@ -1781,19 +1867,23 @@ class PlantCurrentPowerConsumption(RestoreSensor):
 
             current_value = float(state.state)
             current_time = dt_util.utcnow()
-            
+
             # Berechne aktuelle Leistung in Watt
             if self._last_value is not None and self._last_time is not None:
                 time_diff = (current_time - self._last_time).total_seconds()
                 if time_diff > 0:
                     # Umrechnung von kWh/s in Watt
-                    power = ((current_value - self._last_value) * 3600 * 1000) / time_diff
-                    self._attr_native_value = max(0, round(power, 0))  # Keine Nachkommastellen
-            
+                    power = (
+                        (current_value - self._last_value) * 3600 * 1000
+                    ) / time_diff
+                    self._attr_native_value = max(
+                        0, round(power, 0)
+                    )  # Keine Nachkommastellen
+
             # Speichere aktuelle Werte für nächste Berechnung
             self._last_value = current_value
             self._last_time = current_time
-                
+
         except (TypeError, ValueError):
             pass
 
@@ -1815,15 +1905,19 @@ class PlantTotalPowerConsumption(RestoreSensor):
         self._attr_name = f"{plant_device.name} Total {READING_POWER_CONSUMPTION}"
         self._attr_unique_id = f"{config.entry_id}-total-power-consumption"
         self._attr_has_entity_name = False
-        self._external_sensor = config.data[FLOW_PLANT_INFO].get(FLOW_SENSOR_POWER_CONSUMPTION)
+        self._external_sensor = config.data[FLOW_PLANT_INFO].get(
+            FLOW_SENSOR_POWER_CONSUMPTION
+        )
         self._attr_icon = ICON_POWER_CONSUMPTION
         self._attr_native_unit_of_measurement = "kWh"
         self._attr_device_class = SensorDeviceClass.ENERGY
         self._attr_state_class = SensorStateClass.TOTAL_INCREASING
-        self._attr_entity_category = EntityCategory.DIAGNOSTIC  # Füge Entity-Kategorie hinzu
+        self._attr_entity_category = (
+            EntityCategory.DIAGNOSTIC
+        )  # Füge Entity-Kategorie hinzu
         self._last_value = None
         self._attr_native_value = 0  # Starte immer bei 0
-        
+
         # Bei Neuerstellung explizit auf 0 setzen
         if config.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
             self._attr_native_value = 0
@@ -1859,7 +1953,7 @@ class PlantTotalPowerConsumption(RestoreSensor):
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
         await super().async_added_to_hass()
-        
+
         # Restore previous state
         last_state = await self.async_get_last_state()
         if last_state and last_state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE):
@@ -1873,20 +1967,25 @@ class PlantTotalPowerConsumption(RestoreSensor):
         """Update the sensor."""
         if self._external_sensor:
             external_state = self.hass.states.get(self._external_sensor)
-            if external_state and external_state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+            if external_state and external_state.state not in (
+                STATE_UNKNOWN,
+                STATE_UNAVAILABLE,
+            ):
                 try:
                     current_value = float(external_state.state)
-                    
+
                     # Berechne nur die Differenz seit dem letzten Wert
                     if self._last_value is not None:
                         if current_value > self._last_value:  # Nur positive Änderungen
                             increase = current_value - self._last_value
-                            self._attr_native_value += round(increase, 3)  # 3 Nachkommastellen statt 2
-                    
+                            self._attr_native_value += round(
+                                increase, 3
+                            )  # 3 Nachkommastellen statt 2
+
                     # Speichere aktuellen Wert für nächste Berechnung
                     self._last_value = current_value
                     self.async_write_ha_state()
-                        
+
                 except (TypeError, ValueError):
                     pass
         else:
@@ -1928,7 +2027,7 @@ class PlantEnergyCost(RestoreSensor):
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
         await super().async_added_to_hass()
-        
+
         state = await self.async_get_last_state()
         if state:
             try:
