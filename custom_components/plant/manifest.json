@@ -9,11 +9,11 @@
   ],
   "codeowners": [
     "@Olen",
-    "@dingausmwald"
+    "@Pedason82"
   ],
   "config_flow": true,
-  "documentation": "https://github.com/dingausmwald/homeassistant-brokkoli/",
-  "issue_tracker": "https://github.com/dingausmwald/homeassistant-brokkoli/issues",
+  "documentation": "https://github.com/Pedason82/homeassistant-brokkoli/",
+  "issue_tracker": "https://github.com/Pedason82/homeassistant-brokkoli/issues",
   "requirements": [
     "async-timeout>=4.0.2"
   ],
