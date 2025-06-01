@@ -1814,6 +1814,9 @@ class PlantCurrentPowerConsumption(RestoreSensor):
         self._attr_state_class = (
             SensorStateClass.MEASUREMENT
         )  # MEASUREMENT statt TOTAL_INCREASING
+        self._external_sensor = config.data[FLOW_PLANT_INFO].get(
+            FLOW_SENSOR_POWER_CONSUMPTION
+        )
         self._last_value = None
         self._last_time = None
         self._attr_native_value = 0  # Starte immer bei 0
@@ -1832,19 +1835,35 @@ class PlantCurrentPowerConsumption(RestoreSensor):
         }
 
     @property
+    def external_sensor(self) -> str:
+        """The external sensor we are tracking"""
+        return self._external_sensor
+
+    def replace_external_sensor(self, new_sensor: str | None) -> None:
+        """Modify the external sensor"""
+        _LOGGER.info("Setting %s external sensor to %s", self.entity_id, new_sensor)
+        self._external_sensor = new_sensor
+
+    @property
     def should_poll(self) -> bool:
         """Return True as we want to poll for updates."""
         return True
 
     async def async_update(self) -> None:
         """Update the sensor."""
-        if not self._plant.sensor_power_consumption:
+        # Use external sensor if configured, otherwise fall back to plant sensor
+        sensor_entity_id = None
+
+        if self._external_sensor:
+            sensor_entity_id = self._external_sensor
+        elif self._plant.sensor_power_consumption:
+            sensor_entity_id = self._plant.sensor_power_consumption.entity_id
+
+        if not sensor_entity_id:
             return
 
         try:
-            state = self._hass.states.get(
-                self._plant.sensor_power_consumption.entity_id
-            )
+            state = self._hass.states.get(sensor_entity_id)
             if not state or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
                 return
 
