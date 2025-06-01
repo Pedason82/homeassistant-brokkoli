@@ -780,15 +780,17 @@ class PlantHealthNumber(RestoreNumber):
                 self._attr_native_value = last_state.native_value
                 # NumberExtraStoredData doesn't have attributes property
                 # Try to restore from the old state format if available
-                if hasattr(last_state, 'extra_data') and last_state.extra_data:
+                if hasattr(last_state, "extra_data") and last_state.extra_data:
                     self._attr_extra_state_attributes.update(last_state.extra_data)
                 else:
                     # Fallback: try to get the old state format for migration
                     old_state = await self.async_get_last_state()
                     if old_state and old_state.attributes:
                         # Migrate health_history from old state format
-                        if 'health_history' in old_state.attributes:
-                            self._attr_extra_state_attributes['health_history'] = old_state.attributes['health_history']
+                        if "health_history" in old_state.attributes:
+                            self._attr_extra_state_attributes[
+                                "health_history"
+                            ] = old_state.attributes["health_history"]
 
     async def async_set_native_value(self, value: float) -> None:
         """Update the current value."""
@@ -813,7 +815,9 @@ class PlantHealthNumber(RestoreNumber):
         self.async_write_ha_state()
 
         _LOGGER.debug(
-            "Added health rating %.1f to history for %s", value, self._plant.entity_id
+            "Added health rating %.1f to history for %s",
+            value,
+            self._plant.entity_id,
         )
 
         # Wenn ein Cycle seinen Health-Wert ändert, aktualisiere alle Member Plants
