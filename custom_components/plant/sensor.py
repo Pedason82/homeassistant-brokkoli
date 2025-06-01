@@ -1996,6 +1996,9 @@ class PlantCurrentEnergyConsumption(RestoreSensor):
         self._attr_name = f"{plantdevice.name} {READING_ENERGY_CONSUMPTION}"
         self._attr_unique_id = f"{config.entry_id}-current-energy-consumption"
         self._attr_has_entity_name = False
+        self._external_sensor = config.data[FLOW_PLANT_INFO].get(
+            FLOW_SENSOR_ENERGY_CONSUMPTION
+        )
         self._attr_icon = ICON_ENERGY_CONSUMPTION
         self._attr_native_unit_of_measurement = "kWh"
         self._attr_device_class = SensorDeviceClass.ENERGY
@@ -2014,27 +2017,34 @@ class PlantCurrentEnergyConsumption(RestoreSensor):
         }
 
     @property
+    def external_sensor(self) -> str:
+        """The external sensor we are tracking"""
+        return self._external_sensor
+
+    def replace_external_sensor(self, new_sensor: str | None) -> None:
+        """Modify the external sensor"""
+        _LOGGER.info("Setting %s external sensor to %s", self.entity_id, new_sensor)
+        self._external_sensor = new_sensor
+
+    @property
     def should_poll(self) -> bool:
         """Return True as we want to poll for updates."""
         return True
 
     async def async_update(self) -> None:
         """Update the sensor."""
-        if not self._plant.total_energy_consumption:
-            return
-
-        try:
-            state = self._hass.states.get(
-                self._plant.total_energy_consumption.entity_id
-            )
-            if not state or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
-                return
-
-            # Direct energy consumption from external sensor
-            self._attr_native_value = float(state.state)
-
-        except (TypeError, ValueError):
-            pass
+        if self._external_sensor:
+            try:
+                state = self._hass.states.get(self._external_sensor)
+                if state and state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+                    # Direct energy consumption from external sensor
+                    self._attr_native_value = float(state.state)
+                else:
+                    self._attr_native_value = 0
+            except (TypeError, ValueError):
+                self._attr_native_value = 0
+        else:
+            self._attr_native_value = 0
 
 
 class PlantTotalEnergyConsumption(RestoreSensor):

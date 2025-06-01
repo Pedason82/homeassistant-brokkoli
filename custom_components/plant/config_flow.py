@@ -1433,7 +1433,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     FLOW_SENSOR_ILLUMINANCE: self.plant.sensor_illuminance,
                     FLOW_SENSOR_HUMIDITY: self.plant.sensor_humidity,
                     FLOW_SENSOR_POWER_CONSUMPTION: self.plant.sensor_power_consumption,
-                    FLOW_SENSOR_ENERGY_CONSUMPTION: self.plant.total_energy_consumption,
+                    FLOW_SENSOR_ENERGY_CONSUMPTION: getattr(
+                        self.plant, "total_energy_consumption", None
+                    ),
                     FLOW_SENSOR_PH: self.plant.sensor_ph,  # pH-Sensor zur Liste hinzufügen
                 }
 
@@ -2031,17 +2033,23 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     )
 
                 if sensor_entities.get("energy"):
+                    # Safely get the default value for energy consumption sensor
+                    default_energy_sensor = None
+                    if (
+                        hasattr(self.plant, "total_energy_consumption")
+                        and self.plant.total_energy_consumption is not None
+                        and hasattr(
+                            self.plant.total_energy_consumption, "external_sensor"
+                        )
+                    ):
+                        default_energy_sensor = (
+                            self.plant.total_energy_consumption.external_sensor
+                        )
+
                     data_schema[
                         vol.Optional(
                             FLOW_SENSOR_ENERGY_CONSUMPTION,
-                            default=(
-                                self.plant.total_energy_consumption.external_sensor
-                                if hasattr(
-                                    self.plant.total_energy_consumption,
-                                    "external_sensor",
-                                )
-                                else None
-                            ),
+                            default=default_energy_sensor,
                         )
                     ] = selector(
                         {
