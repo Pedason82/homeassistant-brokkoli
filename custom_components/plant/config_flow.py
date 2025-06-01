@@ -1433,11 +1433,19 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     FLOW_SENSOR_ILLUMINANCE: self.plant.sensor_illuminance,
                     FLOW_SENSOR_HUMIDITY: self.plant.sensor_humidity,
                     FLOW_SENSOR_POWER_CONSUMPTION: self.plant.sensor_power_consumption,
-                    FLOW_SENSOR_ENERGY_CONSUMPTION: getattr(
-                        self.plant, "total_energy_consumption", None
-                    ),
                     FLOW_SENSOR_PH: self.plant.sensor_ph,  # pH-Sensor zur Liste hinzufügen
                 }
+
+                # Safely add energy consumption sensor
+                try:
+                    energy_sensor = getattr(self.plant, "total_energy_consumption", None)
+                    sensor_mappings[FLOW_SENSOR_ENERGY_CONSUMPTION] = energy_sensor
+                except Exception as exc:
+                    _LOGGER.warning(
+                        "Error accessing total_energy_consumption for sensor mapping: %s",
+                        exc
+                    )
+                    sensor_mappings[FLOW_SENSOR_ENERGY_CONSUMPTION] = None
 
                 for sensor_key, current_sensor in sensor_mappings.items():
                     new_sensor = user_input.get(sensor_key)
@@ -1836,7 +1844,28 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             )
         else:
             # Normale Plant/Cycle Optionen
-            self.plant = self.hass.data[DOMAIN][self.entry.entry_id]["plant"]
+            try:
+                # Safely get the plant object with error handling
+                domain_data = self.hass.data.get(DOMAIN, {})
+                entry_data = domain_data.get(self.entry.entry_id, {})
+                self.plant = entry_data.get("plant")
+
+                if self.plant is None:
+                    _LOGGER.error(
+                        "Plant object not found for entry %s. Available data: %s",
+                        self.entry.entry_id,
+                        list(domain_data.keys())
+                    )
+                    return self.async_abort(reason="plant_not_found")
+
+            except Exception as exc:
+                _LOGGER.error(
+                    "Error accessing plant object for entry %s: %s",
+                    self.entry.entry_id,
+                    exc
+                )
+                return self.async_abort(reason="plant_access_error")
+
             plant_helper = PlantHelper(hass=self.hass)
 
             # Nur für Plants, nicht für Cycles
@@ -2035,16 +2064,24 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 if sensor_entities.get("energy"):
                     # Safely get the default value for energy consumption sensor
                     default_energy_sensor = None
-                    if (
-                        hasattr(self.plant, "total_energy_consumption")
-                        and self.plant.total_energy_consumption is not None
-                        and hasattr(
-                            self.plant.total_energy_consumption, "external_sensor"
+                    try:
+                        if (
+                            hasattr(self.plant, "total_energy_consumption")
+                            and self.plant.total_energy_consumption is not None
+                            and hasattr(
+                                self.plant.total_energy_consumption, "external_sensor"
+                            )
+                        ):
+                            default_energy_sensor = (
+                                self.plant.total_energy_consumption.external_sensor
+                            )
+                    except Exception as exc:
+                        _LOGGER.warning(
+                            "Error accessing total_energy_consumption sensor for %s: %s",
+                            self.entry.entry_id,
+                            exc
                         )
-                    ):
-                        default_energy_sensor = (
-                            self.plant.total_energy_consumption.external_sensor
-                        )
+                        default_energy_sensor = None
 
                     data_schema[
                         vol.Optional(

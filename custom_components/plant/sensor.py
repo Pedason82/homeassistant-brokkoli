@@ -2031,6 +2031,19 @@ class PlantCurrentEnergyConsumption(RestoreSensor):
         """Return True as we want to poll for updates."""
         return True
 
+    async def async_added_to_hass(self) -> None:
+        """Handle entity which will be added."""
+        await super().async_added_to_hass()
+
+        # Restore previous state
+        last_state = await self.async_get_last_state()
+        if last_state and last_state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+            try:
+                if not self._config.data[FLOW_PLANT_INFO].get(ATTR_IS_NEW_PLANT, False):
+                    self._attr_native_value = float(last_state.state)
+            except (TypeError, ValueError):
+                self._attr_native_value = 0
+
     async def async_update(self) -> None:
         """Update the sensor."""
         if self._external_sensor:
@@ -2192,14 +2205,20 @@ class PlantEnergyCost(RestoreSensor):
 
     async def async_update(self) -> None:
         """Update the sensor."""
-        if not self._plant.total_energy_consumption:
-            self._attr_native_value = 0.0
-            return
-
         try:
-            total_energy = float(self._plant.total_energy_consumption.state)
+            if not hasattr(self._plant, 'total_energy_consumption') or not self._plant.total_energy_consumption:
+                self._attr_native_value = 0.0
+                return
+
+            total_energy_state = self._plant.total_energy_consumption.state
+            if total_energy_state in (STATE_UNKNOWN, STATE_UNAVAILABLE, None):
+                self._attr_native_value = 0.0
+                return
+
+            total_energy = float(total_energy_state)
             self._attr_native_value = round(total_energy * self._plant.kwh_price, 2)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, AttributeError) as exc:
+            _LOGGER.debug("Error updating energy cost sensor: %s", exc)
             self._attr_native_value = 0.0
 
 
