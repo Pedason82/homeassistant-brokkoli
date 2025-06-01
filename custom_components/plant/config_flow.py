@@ -2157,8 +2157,16 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             if entity_picture == "":
                 self.plant.add_image(entity_picture)
             else:
-                # Entferne doppelte Slashes
-                entity_picture = entity_picture.replace("//", "/")
+                # Entferne doppelte Slashes, aber behalte Protokoll-Slashes (https://, http://)
+                if entity_picture.startswith(("http://", "https://")):
+                    # Für URLs: Behalte Protokoll und entferne nur doppelte Slashes im Pfad
+                    protocol_end = entity_picture.find("://") + 3
+                    protocol_part = entity_picture[:protocol_end]
+                    path_part = entity_picture[protocol_end:]
+                    entity_picture = protocol_part + path_part.replace("//", "/")
+                else:
+                    # Für lokale Pfade: Entferne alle doppelten Slashes
+                    entity_picture = entity_picture.replace("//", "/")
                 try:
                     if entity_picture.startswith("/local/"):
                         # Lokaler Pfad
