@@ -1,0 +1,111 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "🔍 Local Validation",
+            "type": "shell",
+            "command": "./scripts/local-validation.sh",
+            "windows": {
+                "command": ".\\scripts\\local-validation.bat"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "detail": "Run local validation checks (Python syntax, Black formatting, HACS structure)"
+        },
+        {
+            "label": "🎨 Auto-fix Black Formatting",
+            "type": "shell",
+            "command": "python",
+            "args": ["-m", "black", "custom_components/"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "detail": "Automatically fix Black formatting issues"
+        },
+        {
+            "label": "🐍 Python Syntax Check",
+            "type": "shell",
+            "command": "python",
+            "args": ["-m", "py_compile", "custom_components/plant/__init__.py"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "detail": "Check Python syntax for main module"
+        },
+        {
+            "label": "📦 HACS Validation",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "-c",
+                "import json; manifest = json.load(open('custom_components/plant/manifest.json')); print('✅ HACS manifest valid') if all(k in manifest for k in ['domain', 'name', 'version']) else print('❌ HACS manifest invalid')"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "detail": "Validate HACS manifest structure"
+        },
+        {
+            "label": "🚀 Quick Commit & Push",
+            "type": "shell",
+            "command": "git",
+            "args": ["add", ".", "&&", "git", "commit", "-m", "${input:commitMessage}", "&&", "git", "push"],
+            "windows": {
+                "command": "cmd",
+                "args": ["/c", "git add . && git commit -m \"${input:commitMessage}\" && git push"]
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "detail": "Add, commit, and push changes with custom message",
+            "dependsOn": "🔍 Local Validation"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "commitMessage",
+            "description": "Commit message",
+            "default": "fix: update plant component",
+            "type": "promptString"
+        }
+    ]
+}
