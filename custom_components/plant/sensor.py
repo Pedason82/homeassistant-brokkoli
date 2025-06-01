@@ -2055,8 +2055,10 @@ class PlantCurrentEnergyConsumption(RestoreSensor):
                     external_state_class = state.attributes.get("state_class")
 
                     # Only accept energy sensors with total_increasing state class
-                    if (external_device_class == "energy" and
-                        external_state_class in ["total_increasing", "total"]):
+                    if external_device_class == "energy" and external_state_class in [
+                        "total_increasing",
+                        "total",
+                    ]:
                         # Direct energy consumption from external sensor
                         self._attr_native_value = float(state.state)
                     else:
@@ -2066,13 +2068,17 @@ class PlantCurrentEnergyConsumption(RestoreSensor):
                             self._external_sensor,
                             self.entity_id,
                             external_device_class,
-                            external_state_class
+                            external_state_class,
                         )
                         self._attr_native_value = 0
                 else:
                     self._attr_native_value = 0
             except (TypeError, ValueError) as exc:
-                _LOGGER.debug("Error updating energy consumption sensor %s: %s", self.entity_id, exc)
+                _LOGGER.debug(
+                    "Error updating energy consumption sensor %s: %s",
+                    self.entity_id,
+                    exc,
+                )
                 self._attr_native_value = 0
         else:
             self._attr_native_value = 0
