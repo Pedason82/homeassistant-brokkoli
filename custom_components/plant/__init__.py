@@ -833,6 +833,8 @@ class PlantDevice(Entity):
         self.sensor_humidity = None
         self.sensor_power_consumption = None
         self.total_power_consumption = None
+        self.sensor_energy_consumption = None
+        self.total_energy_consumption = None
 
         self.dli = None
         self.micro_dli = None
@@ -1450,11 +1452,12 @@ class PlantDevice(Entity):
             self.sensor_moisture,
             self.sensor_temperature,
             self.sensor_power_consumption,
+            self.sensor_energy_consumption,
             self.sensor_ph,  # pH-Sensor hinzufügen
         ]
 
     @property
-    def integral_entities(self) -> list(Entity):
+    def integral_entities(self) -> list[Entity]:
         """List all integral entities"""
         return [
             self.dli,
@@ -2344,6 +2347,11 @@ class PlantDevice(Entity):
         """Add power consumption sensors."""
         self.sensor_power_consumption = current
         self.total_power_consumption = total
+
+    def add_energy_consumption_sensors(self, current, total):
+        """Add energy consumption sensors."""
+        self.sensor_energy_consumption = current
+        self.total_energy_consumption = total
 
     @property
     def kwh_price(self) -> float:
