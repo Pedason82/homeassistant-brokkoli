@@ -58,6 +58,7 @@ READING_DLI = "dli"
 READING_MOISTURE_CONSUMPTION = "water consumption"
 READING_FERTILIZER_CONSUMPTION = "fertilizer consumption"
 READING_POWER_CONSUMPTION = "power consumption"
+READING_ENERGY_CONSUMPTION = "energy consumption"
 READING_PH = "soil pH"
 
 ATTR_MAX_ILLUMINANCE_HISTORY = "max_illuminance"
@@ -129,6 +130,7 @@ FLOW_SENSOR_CONDUCTIVITY = "conductivity_sensor"
 FLOW_SENSOR_ILLUMINANCE = "illuminance_sensor"
 FLOW_SENSOR_HUMIDITY = "humidity_sensor"
 FLOW_SENSOR_POWER_CONSUMPTION = "power_consumption_sensor"
+FLOW_SENSOR_ENERGY_CONSUMPTION = "energy_consumption_sensor"
 FLOW_SENSOR_PH = "ph_sensor"
 
 FLOW_TEMP_UNIT = "temperature_unit"
@@ -154,6 +156,7 @@ ICON_TEMPERATURE = "mdi:thermometer"
 ICON_WATER_CONSUMPTION = "mdi:water-pump"
 ICON_FERTILIZER_CONSUMPTION = "mdi:chart-line-variant"
 ICON_POWER_CONSUMPTION = "mdi:flash"
+ICON_ENERGY_CONSUMPTION = "mdi:lightning-bolt-outline"
 ICON_PH = "mdi:ph"
 
 OPB_GET = "get"
@@ -394,6 +397,7 @@ CONF_DEFAULT_MIN_PH = "default_min_ph"
 ATTR_WATER_CONSUMPTION = "water_consumption"
 ATTR_FERTILIZER_CONSUMPTION = "fertilizer_consumption"
 ATTR_POWER_CONSUMPTION = "power_consumption"
+ATTR_ENERGY_CONSUMPTION = "energy_consumption"
 
 DEFAULT_KWH_PRICE = 0.3684  # Default kWh Preis in Euro
 ATTR_KWH_PRICE = "kwh_price"  # Attribut für den kWh Preis

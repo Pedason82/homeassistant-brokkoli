@@ -95,6 +95,7 @@ from .const import (
     FLOW_SENSOR_MOISTURE,
     FLOW_SENSOR_TEMPERATURE,
     FLOW_SENSOR_POWER_CONSUMPTION,
+    FLOW_SENSOR_ENERGY_CONSUMPTION,
     FLOW_SENSOR_PH,
     FLOW_STRING_DESCRIPTION,
     FLOW_TEMP_UNIT,
@@ -809,7 +810,18 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
             vol.Optional(
                 FLOW_SENSOR_POWER_CONSUMPTION,
-                description={"name": "Total Power Consumption Sensor"},
+                description={"name": "Current Power Consumption Sensor (W)"},
+            ): selector(
+                {
+                    ATTR_ENTITY: {
+                        ATTR_DEVICE_CLASS: SensorDeviceClass.POWER,
+                        ATTR_DOMAIN: DOMAIN_SENSOR,
+                    }
+                }
+            ),
+            vol.Optional(
+                FLOW_SENSOR_ENERGY_CONSUMPTION,
+                description={"name": "Total Energy Consumption Sensor (kWh)"},
             ): selector(
                 {
                     ATTR_ENTITY: {
@@ -1420,7 +1432,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     FLOW_SENSOR_CONDUCTIVITY: self.plant.sensor_conductivity,
                     FLOW_SENSOR_ILLUMINANCE: self.plant.sensor_illuminance,
                     FLOW_SENSOR_HUMIDITY: self.plant.sensor_humidity,
-                    FLOW_SENSOR_POWER_CONSUMPTION: self.plant.total_power_consumption,
+                    FLOW_SENSOR_POWER_CONSUMPTION: self.plant.sensor_power_consumption,
+                    FLOW_SENSOR_ENERGY_CONSUMPTION: self.plant.total_energy_consumption,
                     FLOW_SENSOR_PH: self.plant.sensor_ph,  # pH-Sensor zur Liste hinzufügen
                 }
 
@@ -1895,9 +1908,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                         device_class == SensorDeviceClass.CONDUCTIVITY
                     ):  # Korrekte Device Class
                         sensor_entities.setdefault("conductivity", []).append(entity_id)
-                    elif (
-                        device_class == SensorDeviceClass.ENERGY
-                    ):  # Füge Power Consumption hinzu
+                    elif device_class == SensorDeviceClass.POWER:
+                        sensor_entities.setdefault("power", []).append(entity_id)
+                    elif device_class == SensorDeviceClass.ENERGY:
                         sensor_entities.setdefault("energy", []).append(entity_id)
                     elif device_class == SensorDeviceClass.PH or device_class == "ph":
                         sensor_entities.setdefault("ph", []).append(entity_id)
@@ -1998,14 +2011,33 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                         }
                     )
 
-                if sensor_entities.get("energy"):
+                if sensor_entities.get("power"):
                     data_schema[
                         vol.Optional(
                             FLOW_SENSOR_POWER_CONSUMPTION,
                             default=(
-                                self.plant.total_power_consumption.external_sensor
+                                self.plant.sensor_power_consumption.external_sensor
+                                if self.plant.sensor_power_consumption
+                                else None
+                            ),
+                        )
+                    ] = selector(
+                        {
+                            ATTR_ENTITY: {
+                                ATTR_DEVICE_CLASS: SensorDeviceClass.POWER,
+                                ATTR_DOMAIN: DOMAIN_SENSOR,
+                            }
+                        }
+                    )
+
+                if sensor_entities.get("energy"):
+                    data_schema[
+                        vol.Optional(
+                            FLOW_SENSOR_ENERGY_CONSUMPTION,
+                            default=(
+                                self.plant.total_energy_consumption.external_sensor
                                 if hasattr(
-                                    self.plant.total_power_consumption,
+                                    self.plant.total_energy_consumption,
                                     "external_sensor",
                                 )
                                 else None
