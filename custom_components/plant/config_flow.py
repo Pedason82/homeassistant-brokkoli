@@ -1438,12 +1438,14 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
                 # Safely add energy consumption sensor
                 try:
-                    energy_sensor = getattr(self.plant, "total_energy_consumption", None)
+                    energy_sensor = getattr(
+                        self.plant, "total_energy_consumption", None
+                    )
                     sensor_mappings[FLOW_SENSOR_ENERGY_CONSUMPTION] = energy_sensor
                 except Exception as exc:
                     _LOGGER.warning(
                         "Error accessing total_energy_consumption for sensor mapping: %s",
-                        exc
+                        exc,
                     )
                     sensor_mappings[FLOW_SENSOR_ENERGY_CONSUMPTION] = None
 
@@ -1854,7 +1856,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     _LOGGER.error(
                         "Plant object not found for entry %s. Available data: %s",
                         self.entry.entry_id,
-                        list(domain_data.keys())
+                        list(domain_data.keys()),
                     )
                     return self.async_abort(reason="plant_not_found")
 
@@ -1862,7 +1864,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 _LOGGER.error(
                     "Error accessing plant object for entry %s: %s",
                     self.entry.entry_id,
-                    exc
+                    exc,
                 )
                 return self.async_abort(reason="plant_access_error")
 
@@ -2079,7 +2081,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                         _LOGGER.warning(
                             "Error accessing total_energy_consumption sensor for %s: %s",
                             self.entry.entry_id,
-                            exc
+                            exc,
                         )
                         default_energy_sensor = None
 

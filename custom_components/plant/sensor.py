@@ -2206,7 +2206,10 @@ class PlantEnergyCost(RestoreSensor):
     async def async_update(self) -> None:
         """Update the sensor."""
         try:
-            if not hasattr(self._plant, 'total_energy_consumption') or not self._plant.total_energy_consumption:
+            if (
+                not hasattr(self._plant, "total_energy_consumption")
+                or not self._plant.total_energy_consumption
+            ):
                 self._attr_native_value = 0.0
                 return
 
