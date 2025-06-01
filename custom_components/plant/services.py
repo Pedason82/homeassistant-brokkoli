@@ -52,6 +52,7 @@ from .const import (
     DEFAULT_IMAGE_PATH,
     DEFAULT_IMAGE_LOCAL_URL,
     FLOW_SENSOR_POWER_CONSUMPTION,
+    FLOW_SENSOR_ENERGY_CONSUMPTION,
     ATTR_POSITION_X,
     ATTR_POSITION_Y,
     SERVICE_CHANGE_POSITION,
@@ -84,6 +85,7 @@ CREATE_PLANT_SCHEMA = vol.Schema(
         vol.Optional(FLOW_SENSOR_ILLUMINANCE): cv.string,
         vol.Optional(FLOW_SENSOR_HUMIDITY): cv.string,
         vol.Optional(FLOW_SENSOR_POWER_CONSUMPTION): cv.string,
+        vol.Optional(FLOW_SENSOR_ENERGY_CONSUMPTION): cv.string,
         vol.Optional(FLOW_SENSOR_PH): cv.string,
     }
 )
@@ -264,6 +266,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 plant_info[FLOW_SENSOR_POWER_CONSUMPTION] = call.data[
                     FLOW_SENSOR_POWER_CONSUMPTION
                 ]
+            if call.data.get(FLOW_SENSOR_ENERGY_CONSUMPTION):
+                plant_info[FLOW_SENSOR_ENERGY_CONSUMPTION] = call.data[
+                    FLOW_SENSOR_ENERGY_CONSUMPTION
+                ]
             if call.data.get(FLOW_SENSOR_PH):
                 plant_info[FLOW_SENSOR_PH] = call.data[FLOW_SENSOR_PH]
 
@@ -297,6 +303,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     FLOW_SENSOR_ILLUMINANCE,
                     FLOW_SENSOR_HUMIDITY,
                     FLOW_SENSOR_POWER_CONSUMPTION,
+                    FLOW_SENSOR_ENERGY_CONSUMPTION,
                     FLOW_SENSOR_PH,
                 ]:
                     if sensor_key in plant_info:
