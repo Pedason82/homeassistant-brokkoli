@@ -282,9 +282,6 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     "default_power_consumption_aggregation": DEFAULT_AGGREGATIONS[
                         "power_consumption"
                     ],
-                    "default_total_power_consumption_aggregation": DEFAULT_AGGREGATIONS[
-                        "total_power_consumption"
-                    ],
                     "default_health_aggregation": DEFAULT_AGGREGATIONS["health"],
                     "default_ph_aggregation": DEFAULT_AGGREGATIONS["ph"],
                     # Füge Download-Pfad für Bilder hinzu
@@ -448,13 +445,6 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         config_data.get(
                             "default_power_consumption_aggregation",
                             DEFAULT_AGGREGATIONS["power_consumption"],
-                        ),
-                    ),
-                    "total_power_consumption": user_input.get(
-                        "total_power_consumption_aggregation",
-                        config_data.get(
-                            "default_total_power_consumption_aggregation",
-                            DEFAULT_AGGREGATIONS["total_power_consumption"],
                         ),
                     ),
                     "health": user_input.get(
@@ -623,13 +613,6 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     DEFAULT_AGGREGATIONS["power_consumption"],
                 ),
             ): vol.In(AGGREGATION_METHODS),
-            vol.Optional(
-                "total_power_consumption_aggregation",
-                default=config_data.get(
-                    "default_total_power_consumption_aggregation",
-                    DEFAULT_AGGREGATIONS["total_power_consumption"],
-                ),
-            ): vol.In(AGGREGATION_METHODS_EXTENDED),
             vol.Optional(
                 "health_aggregation",
                 default=config_data.get(
@@ -1398,7 +1381,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     "default_total_water_consumption_aggregation": "default_total_water_consumption_aggregation",
                     "default_total_fertilizer_consumption_aggregation": "default_total_fertilizer_consumption_aggregation",
                     "default_power_consumption_aggregation": "default_power_consumption_aggregation",
-                    "default_total_power_consumption_aggregation": "default_total_power_consumption_aggregation",
                     "default_health_aggregation": "default_health_aggregation",
                     "default_ph_aggregation": "default_ph_aggregation",
                     # Füge Download-Pfad hinzu
@@ -1809,13 +1791,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                         default=self.entry.data[FLOW_PLANT_INFO].get(
                             "default_total_fertilizer_consumption_aggregation",
                             DEFAULT_AGGREGATIONS["total_fertilizer_consumption"],
-                        ),
-                    ): vol.In(AGGREGATION_METHODS_EXTENDED),
-                    vol.Optional(
-                        "default_total_power_consumption_aggregation",
-                        default=self.entry.data[FLOW_PLANT_INFO].get(
-                            "default_total_power_consumption_aggregation",
-                            DEFAULT_AGGREGATIONS["total_power_consumption"],
                         ),
                     ): vol.In(AGGREGATION_METHODS_EXTENDED),
                     vol.Optional(

@@ -344,7 +344,6 @@ DEFAULT_AGGREGATIONS = {
     "total_water_consumption": AGGREGATION_ORIGINAL,
     "total_fertilizer_consumption": AGGREGATION_ORIGINAL,
     "power_consumption": AGGREGATION_MEAN,
-    "total_power_consumption": AGGREGATION_ORIGINAL,
     "health": AGGREGATION_MEAN,  # Hinzugefügt für Health Helper
     "ph": AGGREGATION_MEDIAN,  # Neue Default-Aggregation für pH
 }
