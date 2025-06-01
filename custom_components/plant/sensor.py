@@ -253,7 +253,9 @@ async def async_setup_entry(
 
             # Füge vereinfachte Sensor-Referenzen der Plant hinzu
             plant.add_power_consumption_sensors(current=pcurp, total=None)
-            plant.add_energy_consumption_sensors(current=None, total=total_energy_consumption)
+            plant.add_energy_consumption_sensors(
+                current=None, total=total_energy_consumption
+            )
 
     # Erstelle die Median-Sensoren für Cycles
     if plant.device_type == DEVICE_TYPE_CYCLE:
@@ -1322,7 +1324,6 @@ class CycleMedianSensor(SensorEntity):
             self._attr_device_class = SensorDeviceClass.POWER
             self._attr_state_class = SensorStateClass.MEASUREMENT
 
-
         self._attr_native_value = None
         self._attr_should_poll = False
 
@@ -1852,9 +1853,6 @@ class PlantCurrentPowerConsumption(RestoreSensor):
 
         except (TypeError, ValueError):
             pass
-
-
-
 
 
 class PlantTotalEnergyConsumption(RestoreSensor):
