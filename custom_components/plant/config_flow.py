@@ -821,7 +821,7 @@ class PlantConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
             vol.Optional(
                 FLOW_SENSOR_ENERGY_CONSUMPTION,
-                description={"name": "Total Energy Consumption Sensor (kWh)"},
+                description={"name": "External Energy Meter (kWh) - Optional"},
             ): selector(
                 {
                     ATTR_ENTITY: {

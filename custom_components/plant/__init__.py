@@ -833,7 +833,6 @@ class PlantDevice(Entity):
         self.sensor_humidity = None
         self.sensor_power_consumption = None
         self.total_power_consumption = None
-        self.sensor_energy_consumption = None
         self.total_energy_consumption = None
 
         self.dli = None
@@ -1452,7 +1451,6 @@ class PlantDevice(Entity):
             self.sensor_moisture,
             self.sensor_temperature,
             self.sensor_power_consumption,
-            self.sensor_energy_consumption,
             self.sensor_ph,  # pH-Sensor hinzufügen
         ]
 
@@ -2064,7 +2062,7 @@ class PlantDevice(Entity):
             "fertilizer_consumption": [],
             "total_fertilizer_consumption": [],  # Füge Total Fertilizer hinzu
             "power_consumption": [],
-            "total_power_consumption": [],  # Füge Total Power hinzu
+            # Entfernt: "total_power_consumption" - nicht mehr benötigt
         }
 
         for plant_id in self._member_plants:
@@ -2118,7 +2116,7 @@ class PlantDevice(Entity):
                             "fertilizer_consumption",
                             "total_fertilizer_consumption",
                             "power_consumption",
-                            "total_power_consumption",
+                            # Entfernt: "total_power_consumption"
                         ]:
                             sensor_values[sensor_type].append(
                                 (float(sensor.state), sensor)
@@ -2154,7 +2152,7 @@ class PlantDevice(Entity):
                         "fertilizer_consumption",
                         "total_fertilizer_consumption",
                         "power_consumption",
-                        "total_power_consumption",
+                        # Entfernt: "total_power_consumption"
                     ]
                     and aggregation_method == AGGREGATION_ORIGINAL
                 ):
@@ -2350,7 +2348,7 @@ class PlantDevice(Entity):
 
     def add_energy_consumption_sensors(self, current, total):
         """Add energy consumption sensors."""
-        self.sensor_energy_consumption = current
+        # Note: current is now always None (removed PlantCurrentEnergyConsumption)
         self.total_energy_consumption = total
 
     @property
