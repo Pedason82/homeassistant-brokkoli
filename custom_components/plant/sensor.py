@@ -2002,7 +2002,7 @@ class PlantCurrentEnergyConsumption(RestoreSensor):
         self._attr_icon = ICON_ENERGY_CONSUMPTION
         self._attr_native_unit_of_measurement = "kWh"
         self._attr_device_class = SensorDeviceClass.ENERGY
-        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_state_class = SensorStateClass.TOTAL_INCREASING
         self._attr_native_value = 0
 
         # Bei Neuerstellung explizit auf 0 setzen
@@ -2050,11 +2050,29 @@ class PlantCurrentEnergyConsumption(RestoreSensor):
             try:
                 state = self._hass.states.get(self._external_sensor)
                 if state and state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE):
-                    # Direct energy consumption from external sensor
-                    self._attr_native_value = float(state.state)
+                    # Check if external sensor is compatible
+                    external_device_class = state.attributes.get("device_class")
+                    external_state_class = state.attributes.get("state_class")
+
+                    # Only accept energy sensors with total_increasing state class
+                    if (external_device_class == "energy" and
+                        external_state_class in ["total_increasing", "total"]):
+                        # Direct energy consumption from external sensor
+                        self._attr_native_value = float(state.state)
+                    else:
+                        _LOGGER.warning(
+                            "External sensor %s for %s has incompatible device_class=%s, state_class=%s. "
+                            "Expected device_class=energy with state_class=total_increasing or total.",
+                            self._external_sensor,
+                            self.entity_id,
+                            external_device_class,
+                            external_state_class
+                        )
+                        self._attr_native_value = 0
                 else:
                     self._attr_native_value = 0
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
+                _LOGGER.debug("Error updating energy consumption sensor %s: %s", self.entity_id, exc)
                 self._attr_native_value = 0
         else:
             self._attr_native_value = 0
