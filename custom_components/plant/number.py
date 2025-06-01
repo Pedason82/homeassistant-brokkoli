@@ -788,9 +788,9 @@ class PlantHealthNumber(RestoreNumber):
                     if old_state and old_state.attributes:
                         # Migrate health_history from old state format
                         if "health_history" in old_state.attributes:
-                            self._attr_extra_state_attributes[
-                                "health_history"
-                            ] = old_state.attributes["health_history"]
+                            self._attr_extra_state_attributes["health_history"] = (
+                                old_state.attributes["health_history"]
+                            )
 
     async def async_set_native_value(self, value: float) -> None:
         """Update the current value."""
