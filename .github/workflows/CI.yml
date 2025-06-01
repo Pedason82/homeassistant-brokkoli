@@ -8,34 +8,22 @@ on:
 
 jobs:
 
-  lint:
-    name: TypeScript Lint Check
+  black:
+    name: Python Code Format Check
     runs-on: ubuntu-latest
     steps:
       - name: Check out code from GitHub
-        uses: "actions/checkout@v4"
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: "actions/checkout@main"
+      - name: Black Code Format Check
+        uses: lgeiger/black-action@master
         with:
-          node-version: '18'
-          cache: 'npm'
-      - name: Install dependencies
-        run: npm ci
-      - name: Run ESLint
-        run: npm run lint
+          args: ". --check --fast --diff"
 
-  build:
-    name: Build Check
+  validate:
+    name: Check hassfest
     runs-on: "ubuntu-latest"
     steps:
       - name: Check out code from GitHub
-        uses: "actions/checkout@v4"
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-      - name: Install dependencies
-        run: npm ci
-      - name: Build project
-        run: npm run build
+        uses: "actions/checkout@main"
+      - name: Run hassfest
+        uses: home-assistant/actions/hassfest@master

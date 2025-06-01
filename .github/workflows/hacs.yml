@@ -14,5 +14,5 @@ jobs:
       - name: HACS Action
         uses: "hacs/action@main"
         with:
-          category: "plugin"
+          category: "integration"
           ignore: brands
