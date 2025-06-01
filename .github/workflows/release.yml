@@ -21,17 +21,20 @@ jobs:
 
       - name: "🏷️ Get version tag"
         id: set_var
-        run: echo "COMPONENT_VERSION=$(jq -r .version custom_components/*/manifest.json)" >> $GITHUB_ENV
+        run: |
+          VERSION=$(jq -r .version custom_components/*/manifest.json)
+          echo "COMPONENT_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: "🏷️ Check if tag exists already"
         uses: mukunku/tag-exists-action@v1.6.0
         id: "check_tag"
-        with: 
-          tag: "v${{ env.COMPONENT_VERSION }}"
+        with:
+          tag: "v${{ steps.set_var.outputs.version }}"
 
       - name: "❌ Cancel if tag is already present"
         run: |
-          echo "Tag already present: v${{ env.COMPONENT_VERSION }}. Not creating a new release"
+          echo "Tag already present: v${{ steps.set_var.outputs.version }}. Not creating a new release"
           gh run cancel ${{ github.run_id }}
           gh run watch ${{ github.run_id }}
         env:
@@ -49,9 +52,9 @@ jobs:
         uses: rickstaa/action-create-tag@v1
         id: "tag_create"
         with:
-          tag: "v${{ env.COMPONENT_VERSION }}"
+          tag: "v${{ steps.set_var.outputs.version }}"
           tag_exists_error: false
-          message: "Version ${{ env.COMPONENT_VERSION }}"
+          message: "Version ${{ steps.set_var.outputs.version }}"
       # if: steps.check_tag.outputs.exists == 'false'
 
       - name: "🗒️ Generate release changelog"
@@ -68,15 +71,15 @@ jobs:
         with:
           prerelease: false
           body: "${{ steps.changelog.outputs.changelog }}"
-          name: "Version ${{ env.COMPONENT_VERSION }}"
-          tag_name: "v${{ env.COMPONENT_VERSION }}"
-        if: contains(env.COMPONENT_VERSION, 'beta') == false
+          name: "Version ${{ steps.set_var.outputs.version }}"
+          tag_name: "v${{ steps.set_var.outputs.version }}"
+        if: contains(steps.set_var.outputs.version, 'beta') == false
 
       - name: 🤞 Create Beta release
         uses: softprops/action-gh-release@v2
         with:
           prerelease: true
           body: "${{ steps.changelog.outputs.changelog }}"
-          name: "Version ${{ env.COMPONENT_VERSION }}"
-          tag_name: "v${{ env.COMPONENT_VERSION }}"
-        if: contains(env.COMPONENT_VERSION, 'beta') == true
+          name: "Version ${{ steps.set_var.outputs.version }}"
+          tag_name: "v${{ steps.set_var.outputs.version }}"
+        if: contains(steps.set_var.outputs.version, 'beta') == true

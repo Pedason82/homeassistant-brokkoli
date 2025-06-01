@@ -13,11 +13,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code from GitHub
-        uses: "actions/checkout@main"
-      - name: Black Code Format Check
-        uses: lgeiger/black-action@master
+        uses: "actions/checkout@v4"
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          args: ". --check --fast --diff"
+          python-version: "3.11"
+      - name: Install Black
+        run: pip install black
+      - name: Black Code Format Check
+        run: black . --check --fast --diff
 
   validate:
     name: Check hassfest
