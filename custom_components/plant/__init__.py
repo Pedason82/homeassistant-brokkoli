@@ -1034,10 +1034,8 @@ class PlantDevice(Entity):
 
     @property
     def power_consumption_trigger(self) -> bool:
-        """Return if power consumption should trigger problems."""
-        return self._config.data[FLOW_PLANT_INFO].get(
-            FLOW_POWER_CONSUMPTION_TRIGGER, True
-        )
+        """Whether we will generate alarms based on power consumption"""
+        return self._config.options.get(FLOW_POWER_CONSUMPTION_TRIGGER, True)
 
     @property
     def breeder(self) -> str:
@@ -1251,12 +1249,13 @@ class PlantDevice(Entity):
                 "unit_of_measurement": self.energy_cost.native_unit_of_measurement,
             }
 
-        if self.total_power_consumption:
-            diagnostics["total_power_consumption"] = {
-                "entity_id": self.total_power_consumption.entity_id,
-                "current": self.total_power_consumption.state,
-                "icon": self.total_power_consumption.icon,
-                "unit_of_measurement": self.total_power_consumption.native_unit_of_measurement,
+        # Note: total_power_consumption sensor was removed - using total_energy_consumption instead
+        if hasattr(self, "total_energy_consumption") and self.total_energy_consumption:
+            diagnostics["total_energy_consumption"] = {
+                "entity_id": self.total_energy_consumption.entity_id,
+                "current": self.total_energy_consumption.state,
+                "icon": self.total_energy_consumption.icon,
+                "unit_of_measurement": self.total_energy_consumption.native_unit_of_measurement,
             }
 
         if self.total_integral:
@@ -2344,7 +2343,7 @@ class PlantDevice(Entity):
     def add_power_consumption_sensors(self, current, total):
         """Add power consumption sensors."""
         self.sensor_power_consumption = current
-        self.total_power_consumption = total
+        # Note: total parameter is now always None (removed PlantTotalPowerConsumption)
 
     def add_energy_consumption_sensors(self, current, total):
         """Add energy consumption sensors."""
