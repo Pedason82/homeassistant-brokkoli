@@ -843,8 +843,8 @@ class PlantMaxPowerConsumption(PlantMinMax):
             CONF_MAX_POWER_CONSUMPTION, DEFAULT_MAX_POWER_CONSUMPTION
         )
         self._attr_unique_id = f"{config.entry_id}-max-power-consumption"
-        self._attr_native_unit_of_measurement = "kWh"
-        self._attr_native_max_value = 10
+        self._attr_native_unit_of_measurement = "W"
+        self._attr_native_max_value = 1000
         self._attr_native_min_value = 0
         self._attr_native_step = 0.1
         self._attr_icon = ICON_POWER_CONSUMPTION
@@ -870,8 +870,8 @@ class PlantMinPowerConsumption(PlantMinMax):
             CONF_MIN_POWER_CONSUMPTION, DEFAULT_MIN_POWER_CONSUMPTION
         )
         self._attr_unique_id = f"{config.entry_id}-min-power-consumption"
-        self._attr_native_unit_of_measurement = "kWh"
-        self._attr_native_max_value = 10
+        self._attr_native_unit_of_measurement = "W"
+        self._attr_native_max_value = 1000
         self._attr_native_min_value = 0
         self._attr_native_step = 0.1
         self._attr_icon = ICON_POWER_CONSUMPTION
