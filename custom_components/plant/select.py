@@ -602,6 +602,7 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
         self._attr_extra_state_attributes = {
             "friendly_name": self._attr_name,
             "custom_treatments": self._custom_treatments,
+            "options": self._attr_options,
         }
 
     def _load_treatment_options(self) -> list[str]:
@@ -642,8 +643,9 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
         _LOGGER.info(
             "About to call async_write_ha_state() for %s", self._plant.entity_id
         )
-        # Update the base attributes to include custom treatments
+        # Update the base attributes to include custom treatments and options
         self._attr_extra_state_attributes["custom_treatments"] = self._custom_treatments
+        self._attr_extra_state_attributes["options"] = self._attr_options
 
         _LOGGER.info(
             "_attr_extra_state_attributes before write: %s",
@@ -674,8 +676,9 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
         if self._attr_current_option == treatment_name:
             self._attr_current_option = ""
 
-        # Update the base attributes to include custom treatments
+        # Update the base attributes to include custom treatments and options
         self._attr_extra_state_attributes["custom_treatments"] = self._custom_treatments
+        self._attr_extra_state_attributes["options"] = self._attr_options
 
         self.async_write_ha_state()
         _LOGGER.info(
