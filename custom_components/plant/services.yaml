@@ -644,3 +644,43 @@ change_position:
           max: 1000
           step: 0.1
           mode: box
+
+add_custom_treatment:
+  name: Add Custom Treatment
+  description: Add a custom treatment option to a plant's treatment selector.
+  fields:
+    entity_id:
+      name: Plant Entity
+      description: The plant entity to add the custom treatment to
+      required: true
+      selector:
+        entity:
+          domain: plant
+          integration: plant
+    treatment_name:
+      name: Treatment Name
+      description: Name of the custom treatment to add
+      example: "my custom treatment"
+      required: true
+      selector:
+        text:
+
+remove_custom_treatment:
+  name: Remove Custom Treatment
+  description: Remove a custom treatment option from a plant's treatment selector.
+  fields:
+    entity_id:
+      name: Plant Entity
+      description: The plant entity to remove the custom treatment from
+      required: true
+      selector:
+        entity:
+          domain: plant
+          integration: plant
+    treatment_name:
+      name: Treatment Name
+      description: Name of the custom treatment to remove
+      example: "my custom treatment"
+      required: true
+      selector:
+        text:

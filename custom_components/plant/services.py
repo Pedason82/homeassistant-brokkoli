@@ -59,6 +59,8 @@ from .const import (
     DATA_SOURCE,
     DATA_SOURCE_PLANTBOOK,
     FLOW_SENSOR_PH,
+    SERVICE_ADD_CUSTOM_TREATMENT,
+    SERVICE_REMOVE_CUSTOM_TREATMENT,
 )
 from .plant_helpers import PlantHelper
 
@@ -122,6 +124,21 @@ ADD_IMAGE_SCHEMA = vol.Schema(
     {
         vol.Required("entity_id"): cv.entity_id,
         vol.Required("image_url"): cv.url,
+    }
+)
+
+# Schemas für Custom Treatment Services
+ADD_CUSTOM_TREATMENT_SCHEMA = vol.Schema(
+    {
+        vol.Required("entity_id"): cv.entity_id,
+        vol.Required("treatment_name"): cv.string,
+    }
+)
+
+REMOVE_CUSTOM_TREATMENT_SCHEMA = vol.Schema(
+    {
+        vol.Required("entity_id"): cv.entity_id,
+        vol.Required("treatment_name"): cv.string,
     }
 )
 
@@ -1019,6 +1036,81 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Update entity state
         target_plant.async_write_ha_state()
 
+    async def add_custom_treatment(call: ServiceCall) -> None:
+        """Add a custom treatment to a plant."""
+        entity_id = call.data["entity_id"]
+        treatment_name = call.data["treatment_name"]
+
+        # Validate treatment name
+        if not treatment_name or len(treatment_name.strip()) == 0:
+            _LOGGER.error("Treatment name cannot be empty")
+            return
+
+        treatment_name = treatment_name.strip()
+
+        # Find the plant and its treatment select entity
+        for entry_data in hass.data.get(DOMAIN, {}).values():
+            if isinstance(entry_data, dict) and ATTR_PLANT in entry_data:
+                plant = entry_data[ATTR_PLANT]
+                if (
+                    plant.entity_id == entity_id
+                    and hasattr(plant, "treatment_select")
+                    and plant.treatment_select
+                ):
+                    success = await plant.treatment_select.async_add_custom_treatment(
+                        treatment_name
+                    )
+                    if success:
+                        _LOGGER.info(
+                            "Successfully added custom treatment '%s' to %s",
+                            treatment_name,
+                            entity_id,
+                        )
+                    else:
+                        _LOGGER.warning(
+                            "Failed to add custom treatment '%s' to %s (already exists or invalid)",
+                            treatment_name,
+                            entity_id,
+                        )
+                    return
+
+        _LOGGER.error("Plant entity %s not found or has no treatment select", entity_id)
+
+    async def remove_custom_treatment(call: ServiceCall) -> None:
+        """Remove a custom treatment from a plant."""
+        entity_id = call.data["entity_id"]
+        treatment_name = call.data["treatment_name"]
+
+        # Find the plant and its treatment select entity
+        for entry_data in hass.data.get(DOMAIN, {}).values():
+            if isinstance(entry_data, dict) and ATTR_PLANT in entry_data:
+                plant = entry_data[ATTR_PLANT]
+                if (
+                    plant.entity_id == entity_id
+                    and hasattr(plant, "treatment_select")
+                    and plant.treatment_select
+                ):
+                    success = (
+                        await plant.treatment_select.async_remove_custom_treatment(
+                            treatment_name
+                        )
+                    )
+                    if success:
+                        _LOGGER.info(
+                            "Successfully removed custom treatment '%s' from %s",
+                            treatment_name,
+                            entity_id,
+                        )
+                    else:
+                        _LOGGER.warning(
+                            "Failed to remove custom treatment '%s' from %s (not found)",
+                            treatment_name,
+                            entity_id,
+                        )
+                    return
+
+        _LOGGER.error("Plant entity %s not found or has no treatment select", entity_id)
+
     async def async_extract_entities(hass: HomeAssistant, call: ServiceCall):
         """Extract target entities from service call."""
         if not call.data.get("target"):
@@ -1295,6 +1387,18 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_ADD_IMAGE, add_image, schema=ADD_IMAGE_SCHEMA
     )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_ADD_CUSTOM_TREATMENT,
+        add_custom_treatment,
+        schema=ADD_CUSTOM_TREATMENT_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_REMOVE_CUSTOM_TREATMENT,
+        remove_custom_treatment,
+        schema=REMOVE_CUSTOM_TREATMENT_SCHEMA,
+    )
 
 
 async def async_unload_services(hass: HomeAssistant) -> None:
@@ -1308,3 +1412,5 @@ async def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_MOVE_TO_AREA)
     hass.services.async_remove(DOMAIN, SERVICE_ADD_IMAGE)
     hass.services.async_remove(DOMAIN, SERVICE_CHANGE_POSITION)
+    hass.services.async_remove(DOMAIN, SERVICE_ADD_CUSTOM_TREATMENT)
+    hass.services.async_remove(DOMAIN, SERVICE_REMOVE_CUSTOM_TREATMENT)

@@ -589,7 +589,8 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
 
     def __init__(self, hass: HomeAssistant, config: ConfigEntry, plant_device) -> None:
         """Initialize the treatment select entity."""
-        self._attr_options = [""] + TREATMENT_OPTIONS  # Leere Option am Anfang
+        self._custom_treatments = []  # Store custom treatments for this plant
+        self._attr_options = self._load_treatment_options()  # Load dynamic options
         self._attr_current_option = ""  # Leere Option als Standard
         self._config = config
         self._hass = hass
@@ -599,6 +600,52 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
 
         # Initialize basic attributes
         self._attr_extra_state_attributes = {"friendly_name": self._attr_name}
+
+    def _load_treatment_options(self) -> list[str]:
+        """Load treatment options (default + custom)."""
+        options = [""] + TREATMENT_OPTIONS.copy()  # Empty option + default treatments
+        options.extend(self._custom_treatments)  # Add custom treatments
+        return sorted(options)  # Sort for consistent display
+
+    async def async_add_custom_treatment(self, treatment_name: str) -> bool:
+        """Add a custom treatment to this plant."""
+        if not treatment_name or treatment_name in self._attr_options:
+            return False  # Already exists or invalid
+
+        self._custom_treatments.append(treatment_name)
+        self._attr_options = self._load_treatment_options()
+        self.async_write_ha_state()
+        _LOGGER.info(
+            "Added custom treatment '%s' to %s", treatment_name, self._plant.entity_id
+        )
+        return True
+
+    async def async_remove_custom_treatment(self, treatment_name: str) -> bool:
+        """Remove a custom treatment from this plant."""
+        if treatment_name not in self._custom_treatments:
+            return False  # Doesn't exist
+
+        self._custom_treatments.remove(treatment_name)
+        self._attr_options = self._load_treatment_options()
+
+        # Reset current option if it was the removed treatment
+        if self._attr_current_option == treatment_name:
+            self._attr_current_option = ""
+
+        self.async_write_ha_state()
+        _LOGGER.info(
+            "Removed custom treatment '%s' from %s",
+            treatment_name,
+            self._plant.entity_id,
+        )
+        return True
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return extra state attributes including custom treatments for persistence."""
+        attrs = self._attr_extra_state_attributes.copy()
+        attrs["custom_treatments"] = self._custom_treatments
+        return attrs
 
     @property
     def device_info(self) -> dict:
@@ -624,6 +671,18 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
                 )
                 if last_state.attributes:
                     self._attr_extra_state_attributes.update(last_state.attributes)
+                    # Restore custom treatments from last state
+                    if "custom_treatments" in last_state.attributes:
+                        self._custom_treatments = last_state.attributes[
+                            "custom_treatments"
+                        ]
+                        self._attr_options = self._load_treatment_options()
+                        _LOGGER.debug(
+                            "Restored %d custom treatments for %s: %s",
+                            len(self._custom_treatments),
+                            self._plant.entity_id,
+                            self._custom_treatments,
+                        )
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""

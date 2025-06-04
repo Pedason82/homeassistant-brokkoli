@@ -441,3 +441,7 @@ ATTR_POSITION_X = "position_x"
 ATTR_POSITION_Y = "position_y"
 SERVICE_CHANGE_POSITION = "change_position"
 ATTR_POSITION_HISTORY = "position_history"
+
+# Custom Treatment Services
+SERVICE_ADD_CUSTOM_TREATMENT = "add_custom_treatment"
+SERVICE_REMOVE_CUSTOM_TREATMENT = "remove_custom_treatment"
