@@ -1041,38 +1041,65 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         entity_id = call.data["entity_id"]
         treatment_name = call.data["treatment_name"]
 
+        _LOGGER.info(
+            "Service called: add_custom_treatment for entity_id=%s, treatment_name='%s'",
+            entity_id,
+            treatment_name,
+        )
+
         # Validate treatment name
         if not treatment_name or len(treatment_name.strip()) == 0:
             _LOGGER.error("Treatment name cannot be empty")
             return
 
         treatment_name = treatment_name.strip()
+        _LOGGER.debug(
+            "Searching for plant entity %s in %d entries",
+            entity_id,
+            len(hass.data.get(DOMAIN, {})),
+        )
 
         # Find the plant and its treatment select entity
-        for entry_data in hass.data.get(DOMAIN, {}).values():
+        for entry_id, entry_data in hass.data.get(DOMAIN, {}).items():
             if isinstance(entry_data, dict) and ATTR_PLANT in entry_data:
                 plant = entry_data[ATTR_PLANT]
-                if (
-                    plant.entity_id == entity_id
-                    and hasattr(plant, "treatment_select")
-                    and plant.treatment_select
-                ):
-                    success = await plant.treatment_select.async_add_custom_treatment(
-                        treatment_name
-                    )
-                    if success:
+                _LOGGER.debug(
+                    "Checking plant: %s (has treatment_select: %s)",
+                    plant.entity_id,
+                    hasattr(plant, "treatment_select"),
+                )
+
+                if plant.entity_id == entity_id:
+                    _LOGGER.info("Found matching plant: %s", entity_id)
+
+                    if hasattr(plant, "treatment_select") and plant.treatment_select:
                         _LOGGER.info(
-                            "Successfully added custom treatment '%s' to %s",
-                            treatment_name,
-                            entity_id,
+                            "Plant has treatment_select, calling async_add_custom_treatment"
                         )
+                        success = (
+                            await plant.treatment_select.async_add_custom_treatment(
+                                treatment_name
+                            )
+                        )
+                        if success:
+                            _LOGGER.info(
+                                "Successfully added custom treatment '%s' to %s",
+                                treatment_name,
+                                entity_id,
+                            )
+                        else:
+                            _LOGGER.warning(
+                                "Failed to add custom treatment '%s' to %s (already exists or invalid)",
+                                treatment_name,
+                                entity_id,
+                            )
+                        return
                     else:
-                        _LOGGER.warning(
-                            "Failed to add custom treatment '%s' to %s (already exists or invalid)",
-                            treatment_name,
+                        _LOGGER.error(
+                            "Plant %s has no treatment_select attribute or it's None",
                             entity_id,
                         )
-                    return
+                        return
 
         _LOGGER.error("Plant entity %s not found or has no treatment select", entity_id)
 

@@ -609,14 +609,39 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
 
     async def async_add_custom_treatment(self, treatment_name: str) -> bool:
         """Add a custom treatment to this plant."""
-        if not treatment_name or treatment_name in self._attr_options:
-            return False  # Already exists or invalid
+        _LOGGER.info(
+            "PlantTreatmentSelect.async_add_custom_treatment called: treatment_name='%s', current_custom_treatments=%s, current_options=%s",
+            treatment_name,
+            self._custom_treatments,
+            self._attr_options,
+        )
+
+        if not treatment_name:
+            _LOGGER.warning("Treatment name is empty")
+            return False
+
+        if treatment_name in self._attr_options:
+            _LOGGER.warning(
+                "Treatment '%s' already exists in options: %s",
+                treatment_name,
+                self._attr_options,
+            )
+            return False
 
         self._custom_treatments.append(treatment_name)
+        old_options = self._attr_options.copy()
         self._attr_options = self._load_treatment_options()
+
+        _LOGGER.info(
+            "Updated treatment options from %s to %s", old_options, self._attr_options
+        )
+
         self.async_write_ha_state()
         _LOGGER.info(
-            "Added custom treatment '%s' to %s", treatment_name, self._plant.entity_id
+            "Added custom treatment '%s' to %s. New custom_treatments: %s",
+            treatment_name,
+            self._plant.entity_id,
+            self._custom_treatments,
         )
         return True
 
