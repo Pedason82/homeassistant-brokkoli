@@ -723,6 +723,13 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
                             "custom_treatments"
                         ]
                         self._attr_options = self._load_treatment_options()
+                        # Update state attributes to match restored data
+                        self._attr_extra_state_attributes["custom_treatments"] = (
+                            self._custom_treatments
+                        )
+                        self._attr_extra_state_attributes["options"] = (
+                            self._attr_options
+                        )
                         _LOGGER.debug(
                             "Restored %d custom treatments for %s: %s",
                             len(self._custom_treatments),
