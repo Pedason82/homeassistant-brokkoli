@@ -645,7 +645,15 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
         # Update the base attributes to include custom treatments
         self._attr_extra_state_attributes["custom_treatments"] = self._custom_treatments
 
+        _LOGGER.info(
+            "_attr_extra_state_attributes before write: %s",
+            self._attr_extra_state_attributes,
+        )
         self.async_write_ha_state()
+        _LOGGER.info(
+            "_attr_extra_state_attributes after write: %s",
+            self._attr_extra_state_attributes,
+        )
         _LOGGER.info(
             "Added custom treatment '%s' to %s. New custom_treatments: %s",
             treatment_name,
@@ -676,18 +684,6 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
             self._plant.entity_id,
         )
         return True
-
-    @property
-    def extra_state_attributes(self) -> dict:
-        """Return extra state attributes including custom treatments for persistence."""
-        attrs = self._attr_extra_state_attributes.copy()
-        attrs["custom_treatments"] = self._custom_treatments
-        _LOGGER.info(
-            "PlantTreatmentSelect.extra_state_attributes called for %s: returning custom_treatments=%s",
-            self._plant.entity_id,
-            self._custom_treatments,
-        )
-        return attrs
 
     @property
     def device_info(self) -> dict:
