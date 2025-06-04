@@ -599,7 +599,10 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
         self._attr_unique_id = f"{config.entry_id}-treatment"
 
         # Initialize basic attributes
-        self._attr_extra_state_attributes = {"friendly_name": self._attr_name}
+        self._attr_extra_state_attributes = {
+            "friendly_name": self._attr_name,
+            "custom_treatments": self._custom_treatments,
+        }
 
     def _load_treatment_options(self) -> list[str]:
         """Load treatment options (default + custom)."""
@@ -639,6 +642,9 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
         _LOGGER.info(
             "About to call async_write_ha_state() for %s", self._plant.entity_id
         )
+        # Update the base attributes to include custom treatments
+        self._attr_extra_state_attributes["custom_treatments"] = self._custom_treatments
+
         self.async_write_ha_state()
         _LOGGER.info(
             "Added custom treatment '%s' to %s. New custom_treatments: %s",
@@ -659,6 +665,9 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
         # Reset current option if it was the removed treatment
         if self._attr_current_option == treatment_name:
             self._attr_current_option = ""
+
+        # Update the base attributes to include custom treatments
+        self._attr_extra_state_attributes["custom_treatments"] = self._custom_treatments
 
         self.async_write_ha_state()
         _LOGGER.info(
