@@ -636,6 +636,9 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
             "Updated treatment options from %s to %s", old_options, self._attr_options
         )
 
+        _LOGGER.info(
+            "About to call async_write_ha_state() for %s", self._plant.entity_id
+        )
         self.async_write_ha_state()
         _LOGGER.info(
             "Added custom treatment '%s' to %s. New custom_treatments: %s",
@@ -670,6 +673,11 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
         """Return extra state attributes including custom treatments for persistence."""
         attrs = self._attr_extra_state_attributes.copy()
         attrs["custom_treatments"] = self._custom_treatments
+        _LOGGER.info(
+            "PlantTreatmentSelect.extra_state_attributes called for %s: returning custom_treatments=%s",
+            self._plant.entity_id,
+            self._custom_treatments,
+        )
         return attrs
 
     @property
