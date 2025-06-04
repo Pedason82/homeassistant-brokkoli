@@ -652,6 +652,11 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
             self._attr_extra_state_attributes,
         )
         self.async_write_ha_state()
+
+        # Force a second state write to ensure attributes are updated
+        await asyncio.sleep(0.1)  # Small delay
+        self.async_write_ha_state()
+
         _LOGGER.info(
             "_attr_extra_state_attributes after write: %s",
             self._attr_extra_state_attributes,
