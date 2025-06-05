@@ -589,7 +589,9 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
 
     def __init__(self, hass: HomeAssistant, config: ConfigEntry, plant_device) -> None:
         """Initialize the treatment select entity."""
-        self._custom_treatments = []  # Store custom treatments with colors: [{"name": "treatment", "color": "green"}]
+        self._custom_treatments = (
+            []
+        )  # Store custom treatments with colors: [{"name": "treatment", "color": "green"}]
         self._attr_options = self._load_treatment_options()  # Load dynamic options
         self._attr_current_option = ""  # Leere Option als Standard
         self._config = config
@@ -611,11 +613,15 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
         """Load treatment options (default + custom)."""
         options = [""] + TREATMENT_OPTIONS.copy()  # Empty option + default treatments
         # Add custom treatment names (extract from dict format)
-        custom_names = [t["name"] if isinstance(t, dict) else t for t in self._custom_treatments]
+        custom_names = [
+            t["name"] if isinstance(t, dict) else t for t in self._custom_treatments
+        ]
         options.extend(custom_names)
         return sorted(options)  # Sort for consistent display
 
-    async def async_add_custom_treatment(self, treatment_name: str, treatment_color: str = "orange") -> bool:
+    async def async_add_custom_treatment(
+        self, treatment_name: str, treatment_color: str = "orange"
+    ) -> bool:
         """Add a custom treatment to this plant."""
         _LOGGER.info(
             "PlantTreatmentSelect.async_add_custom_treatment called: treatment_name='%s', treatment_color='%s', current_custom_treatments=%s, current_options=%s",

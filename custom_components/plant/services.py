@@ -132,7 +132,9 @@ ADD_CUSTOM_TREATMENT_SCHEMA = vol.Schema(
     {
         vol.Required("entity_id"): cv.entity_id,
         vol.Required("treatment_name"): cv.string,
-        vol.Required("treatment_color"): vol.In(["orange", "green", "blue", "red", "yellow"]),
+        vol.Required("treatment_color"): vol.In(
+            ["orange", "green", "blue", "red", "yellow"]
+        ),
     }
 )
 
