@@ -664,6 +664,23 @@ add_custom_treatment:
       required: true
       selector:
         text:
+    treatment_color:
+      name: Treatment Color
+      description: Color for the custom treatment display
+      required: true
+      selector:
+        select:
+          options:
+            - value: "orange"
+              label: "Orange"
+            - value: "green"
+              label: "Green"
+            - value: "blue"
+              label: "Blue"
+            - value: "red"
+              label: "Red"
+            - value: "yellow"
+              label: "Yellow"
 
 remove_custom_treatment:
   name: Remove Custom Treatment

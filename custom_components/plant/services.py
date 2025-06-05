@@ -132,6 +132,7 @@ ADD_CUSTOM_TREATMENT_SCHEMA = vol.Schema(
     {
         vol.Required("entity_id"): cv.entity_id,
         vol.Required("treatment_name"): cv.string,
+        vol.Required("treatment_color"): vol.In(["orange", "green", "blue", "red", "yellow"]),
     }
 )
 
@@ -1040,11 +1041,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         """Add a custom treatment to a plant."""
         entity_id = call.data["entity_id"]
         treatment_name = call.data["treatment_name"]
+        treatment_color = call.data["treatment_color"]
 
         _LOGGER.info(
-            "Service called: add_custom_treatment for entity_id=%s, treatment_name='%s'",
+            "Service called: add_custom_treatment for entity_id=%s, treatment_name='%s', treatment_color='%s'",
             entity_id,
             treatment_name,
+            treatment_color,
         )
 
         # Validate treatment name
@@ -1078,19 +1081,21 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         )
                         success = (
                             await plant.treatment_select.async_add_custom_treatment(
-                                treatment_name
+                                treatment_name, treatment_color
                             )
                         )
                         if success:
                             _LOGGER.info(
-                                "Successfully added custom treatment '%s' to %s",
+                                "Successfully added custom treatment '%s' with color '%s' to %s",
                                 treatment_name,
+                                treatment_color,
                                 entity_id,
                             )
                         else:
                             _LOGGER.warning(
-                                "Failed to add custom treatment '%s' to %s (already exists or invalid)",
+                                "Failed to add custom treatment '%s' with color '%s' to %s (already exists or invalid)",
                                 treatment_name,
+                                treatment_color,
                                 entity_id,
                             )
                         return

@@ -589,7 +589,7 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
 
     def __init__(self, hass: HomeAssistant, config: ConfigEntry, plant_device) -> None:
         """Initialize the treatment select entity."""
-        self._custom_treatments = []  # Store custom treatments for this plant
+        self._custom_treatments = []  # Store custom treatments with colors: [{"name": "treatment", "color": "green"}]
         self._attr_options = self._load_treatment_options()  # Load dynamic options
         self._attr_current_option = ""  # Leere Option als Standard
         self._config = config
@@ -610,14 +610,17 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
     def _load_treatment_options(self) -> list[str]:
         """Load treatment options (default + custom)."""
         options = [""] + TREATMENT_OPTIONS.copy()  # Empty option + default treatments
-        options.extend(self._custom_treatments)  # Add custom treatments
+        # Add custom treatment names (extract from dict format)
+        custom_names = [t["name"] if isinstance(t, dict) else t for t in self._custom_treatments]
+        options.extend(custom_names)
         return sorted(options)  # Sort for consistent display
 
-    async def async_add_custom_treatment(self, treatment_name: str) -> bool:
+    async def async_add_custom_treatment(self, treatment_name: str, treatment_color: str = "orange") -> bool:
         """Add a custom treatment to this plant."""
         _LOGGER.info(
-            "PlantTreatmentSelect.async_add_custom_treatment called: treatment_name='%s', current_custom_treatments=%s, current_options=%s",
+            "PlantTreatmentSelect.async_add_custom_treatment called: treatment_name='%s', treatment_color='%s', current_custom_treatments=%s, current_options=%s",
             treatment_name,
+            treatment_color,
             self._custom_treatments,
             self._attr_options,
         )
@@ -634,7 +637,9 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
             )
             return False
 
-        self._custom_treatments.append(treatment_name)
+        # Store treatment with color information
+        treatment_data = {"name": treatment_name, "color": treatment_color}
+        self._custom_treatments.append(treatment_data)
         old_options = self._attr_options.copy()
         self._attr_options = self._load_treatment_options()
 
@@ -673,10 +678,21 @@ class PlantTreatmentSelect(SelectEntity, RestoreEntity):
 
     async def async_remove_custom_treatment(self, treatment_name: str) -> bool:
         """Remove a custom treatment from this plant."""
-        if treatment_name not in self._custom_treatments:
+        # Find treatment in list (handle both old string format and new dict format)
+        treatment_to_remove = None
+        for treatment in self._custom_treatments:
+            if isinstance(treatment, dict):
+                if treatment["name"] == treatment_name:
+                    treatment_to_remove = treatment
+                    break
+            elif treatment == treatment_name:  # Old string format
+                treatment_to_remove = treatment
+                break
+
+        if treatment_to_remove is None:
             return False  # Doesn't exist
 
-        self._custom_treatments.remove(treatment_name)
+        self._custom_treatments.remove(treatment_to_remove)
         self._attr_options = self._load_treatment_options()
 
         # Reset current option if it was the removed treatment
